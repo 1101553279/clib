@@ -1,6 +1,6 @@
 
 
-set(SOURCE_FILES command.c usrv.c)
+set(SOURCE_FILES command.c)
 
 
 #message("SOURCE_FILES = ${SOURCE_FILES}")

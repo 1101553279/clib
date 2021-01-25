@@ -152,8 +152,10 @@ int cmd_rmv(char *name)
     /* search this command */
     c = cmd_find(name);
     if(NULL == c)
+    {
+        log_red("not found this command\n");
         return -1; 
-    
+    }
     /* delete from command list */
     list_del(&c->head);
 
