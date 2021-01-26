@@ -20,7 +20,7 @@ int main(int argc, char *argv[])
         sleep(1);
 //        printf("main run!\r\n");
         plog(RUN, "main run!\n");
-//        log_whi("main run\n");
+        log_whi("main run\n");
     }
 
 

@@ -22,27 +22,10 @@ struct plog{
 };
 
 static struct plog plog_obj;
+static void con_init(struct con *c);
+static void con_send(struct con *c, char *buff, u16_t len);
 static int plog_command(int argc, char *argv[], char *buff, int len, void *user);
 
-/* init connection module */
-static void con_init(struct con *c)
-{
-    if(c)
-    {
-        c->ufd = -1;
-        memset(&c->caddr, 0, sizeof(c->caddr));
-        memset(&c->clen, 0, sizeof(c->clen));
-    }
-    return;
-}
-/* send log to client */
-static void con_send(struct con *c, char *buff, u16_t len)
-{
-    /* has client */
-    if(c->ufd > 0)
-        sendto(c->ufd, buff, len, 0, (const struct sockaddr*)&c->caddr, c->clen);
-    return;
-}
 
 /* init plog module */
 void plog_init(void)
@@ -185,17 +168,20 @@ static int plog_command(int argc, char *argv[], char *buff, int len, void *user)
         if(0 == strcmp("run", arg))
             key |= PLOG_RUN;
         else
-            break;  /* match fail, parameter error */
+        {
+            ret += snprintf(buff+ret, len-ret, "%s %s %s <- no this mod\n", argv[0], mbuff, arg);
+            goto err_mod;  /* match fail, parameter error */
+        }
         mret += snprintf(mbuff+mret, sizeof(mbuff)-mret, "%s ", arg);
     }
 
     if(0 == strcmp("on", argv[i]))
     {
-        cmd_client(&caddr, &clen);  /* get client address */
+        cmd_client(&caddr, &clen);  /* get client address information */
         plog_con_on(cmd_srv_fd(), &caddr, clen);
         if(0 != key)
             plog_key_on(key);
-        ret += snprintf(buff+ret, sizeof(buff)-ret, "/*** plog %s on ***/\n", 0==strlen(mbuff)? "key" :mbuff);
+        ret += snprintf(buff+ret, len-ret, "/*** plog %s on ***/\n", 0==strlen(mbuff)? "key" :mbuff);
     }
     else
     {
@@ -203,11 +189,31 @@ static int plog_command(int argc, char *argv[], char *buff, int len, void *user)
             plog_con_off();
         else
             plog_key_off(key);
-        ret += snprintf(buff+ret, sizeof(buff)-ret, "/*** plog %s off ***/\n", 0==strlen(mbuff) ?"all" :mbuff);
+        ret += snprintf(buff+ret, len-ret, "/*** plog %s off ***/\n", 0==strlen(mbuff) ?"all" :mbuff);
     }
 
-    ret += snprintf(buff+ret, sizeof(buff)-ret, "\n");
+    ret += snprintf(buff+ret, len-ret, "\n");
+err_mod:
 err_key:
 err_argc: 
     return ret;
+}
+/* init connection module */
+static void con_init(struct con *c)
+{
+    if(c)
+    {
+        c->ufd = -1;
+        memset(&c->caddr, 0, sizeof(c->caddr));
+        memset(&c->clen, 0, sizeof(c->clen));
+    }
+    return;
+}
+/* send log to client */
+static void con_send(struct con *c, char *buff, u16_t len)
+{
+    /* has client */
+    if(c->ufd > 0)
+        sendto(c->ufd, buff, len, 0, (const struct sockaddr*)&c->caddr, c->clen);
+    return;
 }

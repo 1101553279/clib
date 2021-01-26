@@ -316,20 +316,20 @@ static int __do_hand(char *buff, struct sockaddr_in *cip, socklen_t clen)
 static void *__cmd_routine(void *arg)
 {
     struct cmd_manager *cm = &cm_obj;
-	struct sockaddr_in cliaddr;
-	socklen_t clilen;
+	struct sockaddr_in *paddr = &cm->caddr;
+	socklen_t *plen = &cm->clen;
     char buff[100];
     ssize_t n;
    
     /* must do */
-    clilen = sizeof(cliaddr);
+    *plen = sizeof(struct sockaddr_in);
     while(1)
     {
         memset(buff, 0, sizeof(buff));
         n = recvfrom(cm->sfd, buff, sizeof(buff)-1,
-                MSG_WAITALL, (struct sockaddr*)&cliaddr, &clilen);
+                MSG_WAITALL, (struct sockaddr*)paddr, plen);
         buff[n] = '\0'; /* append tail character */
-        __do_hand(buff, &cliaddr, clilen);
+        __do_hand(buff, paddr, *plen);
     }
     return NULL;
 }
