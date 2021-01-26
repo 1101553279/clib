@@ -4,7 +4,6 @@
 #include "util.h"
 #include "blist.h"
 #include "log.h"
-#include "plog.h"
 #include <unistd.h>
 #include <pthread.h>
 #include <string.h>
@@ -97,6 +96,22 @@ struct command *cmd_find(char *name)
     }
 
     return NULL;
+}
+/* command manager information */
+int cmd_srv_fd(void)
+{
+    return cm_obj.sfd;
+}
+/* sender(PC host) information */
+int cmd_client(struct sockaddr_in *addr, socklen_t *len)
+{
+    if(NULL==addr || NULL==len)
+        return -1;
+    
+    *addr = cm_obj.caddr;
+    *len = cm_obj.clen;
+
+    return 0;
 }
 /* fill information into buff */
 int cmd_info_iterate(char *buff, int len, command_info_iterate_cb_t cb, char *title)
@@ -223,7 +238,7 @@ static int __cmd_reply(const char *buff, struct sockaddr_in *cip, socklen_t clen
 
     if(NULL==buff || NULL==cip || 0==clen)
     {
-        plog(CMD, "parameter error: msg=%s, cip=%p, clen=%d\n", buff, cip, clen);
+        log_red("parameter error: msg=%s, cip=%p, clen=%d\n", buff, cip, clen);
         return -1;
     }
    
@@ -249,7 +264,7 @@ static int __cmd_exe(struct command *cmd, int argc, char *argv[], struct sockadd
 
     if(NULL==cmd || 0==argc || NULL==argv || NULL==cip || 0==clen)
     {
-        plog(CMD, "parameter error: cmd=%p, argc=%d, argv=%p, cip=%p, clen=%d\n", 
+        log_red("parameter error: cmd=%p, argc=%d, argv=%p, cip=%p, clen=%d\n", 
                 cmd, argc, argv, cip, clen);
         return -1;
     }
@@ -290,7 +305,7 @@ static int __do_hand(char *buff, struct sockaddr_in *cip, socklen_t clen)
         return -1;
     }
 
-    plog(CMD, "command search success!\n");
+    log_red("command search success!\n");
      
     if(__cmd_exe(c, argc, argv, cip, clen))
         return -1;

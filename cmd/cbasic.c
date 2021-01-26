@@ -3,14 +3,17 @@
 #include <string.h>
 #include "command.h"
 #include "blist.h"
+#include "plog.h"
 
 static int help_command(int argc, char *argv[], char *buff, int len, void *user);
+int dump_command(int argc, char *argv[], char *buff, int len, void *user);
 
 /* init basic command module */
 void cbasic_init(void)
 {
 #if 1
     cmd_add("help", "list all commands information", CMD_INDENT"help [cmd]\n", help_command, NULL);
+    cmd_add("dump", "dump module information", CMD_INDENT"dump [help|plog]", dump_command, NULL);
 #endif
     return;
 }
@@ -46,3 +49,21 @@ static int help_command(int argc, char *argv[], char *buff, int len, void *user)
 
     return ret;
 }
+
+/* dump command function */
+int dump_command(int argc, char *argv[], char *buff, int len, void *user)
+{
+    int ret = 0;
+
+    /* get module information*/
+    if(argc == 2)
+    {
+        if(0 ==strcmp(argv[1], "plog"))
+            ret += plog_dump(buff+ret, sizeof(buff)-ret);
+    }
+    else
+        ret += snprintf(buff+ret, sizeof(buff)-ret, "parameter error!\n");
+
+    return ret;
+}
+

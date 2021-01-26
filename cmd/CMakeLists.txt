@@ -7,5 +7,5 @@ set(SOURCE_FILES command.c cbasic.c)
 add_library(cmd SHARED ${SOURCE_FILES})
 
 
-target_link_libraries(cmd pthread plog util)
+target_link_libraries(cmd pthread util)
 

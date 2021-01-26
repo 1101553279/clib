@@ -13,6 +13,7 @@ struct command;
 typedef int (*command_cb_t)(int argc, char *argv[], 
         char *buff, int len, void *user);
 
+
 #define CMD_NAME(c)     ((c)->name)
 #define CMD_SPEC(c)     ((c)->spec)
 #define CMD_USAGE(c)    ((c)->usage)
@@ -23,7 +24,7 @@ struct command{
 	char *name;             /* command name */
 	char *spec;             /* command help information */
 	char *usage;            /* command usage */
-	command_cb_t func;      /*command execution function */
+	command_cb_t func;      /* command execution function */
     void *user;             /* user data */
 };
 
@@ -34,9 +35,9 @@ struct command *cmd_find(char *name);
 
 /* command manager information */
 int cmd_srv_fd(void);
+
 /* sender(PC host) information */
-struct sockaddr_in *cmd_client_addr(void);
-socklen_t cmd_client_len(void);
+int cmd_client(struct sockaddr_in *addr, socklen_t *len);
 
 /* eg: for help command */
 typedef int (*command_info_iterate_cb_t)(struct command *c, char *buff, int len);

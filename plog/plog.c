@@ -22,6 +22,7 @@ struct plog{
 };
 
 static struct plog plog_obj;
+static int plog_command(int argc, char *argv[], char *buff, int len, void *user);
 
 /* init connection module */
 static void con_init(struct con *c)
@@ -51,6 +52,8 @@ void plog_init(void)
     p->key = 0;
     con_init(&p->con);
     memset(p->buff, 0, sizeof(p->buff));
+    /* add plog command */
+    cmd_add("plog", "plog execution procedure", CMD_INDENT"plog [key...] on/off\n", plog_command, NULL);
 
     return;
 }
@@ -99,6 +102,9 @@ void plog_con_on(int ufd, struct sockaddr_in *addr, socklen_t len)
 {
     struct con *c = &plog_obj.con;
 
+    if(NULL==addr)
+        return;
+
     /* set client connection information */
     c->ufd = ufd;
     memcpy(&c->caddr, addr, sizeof(struct sockaddr_in));
@@ -144,17 +150,16 @@ u16_t plog_dump(char *buff, u16_t len)
 }
 
 /****** static function list ******/
-#if 0
 static int plog_command(int argc, char *argv[], char *buff, int len, void *user)
 {
-    char buff[CMD_BL_SIZE];
     int ret = 0;
-    struct client *c = (struct client *)data;
     int i = 0;
     char mbuff[100];    /* mod buffer */
     int mret = 0;   /* mod return length */
     u32_t key = 0;
     char *arg;
+    struct sockaddr_in caddr;
+    socklen_t clen;
 #if 0
     for(i=0; i < argc; i++)
         printf("%s ", argv[i]);
@@ -162,18 +167,17 @@ static int plog_command(int argc, char *argv[], char *buff, int len, void *user)
 #endif
     if(argc < 2)
     {
-        ret += snprintf(buff+ret, sizeof(buff)-ret, "parameter < 2\n");
-        usrv_client_reply(c, buff, ret);
-        return -1;
+        ret += snprintf(buff+ret, len-ret, "parameter < 2\n");
+        goto err_argc;
     }
-    memset(buff, 0, sizeof(buff)); 
-    memset(mbuff, 0, sizeof(buff));
+
     if(0!=strcmp("on", argv[argc-1]) && 0!=strcmp("off", argv[argc-1]))
     {
-        ret += snprintf(buff+ret, sizeof(buff)-ret, "cmd error: the lastest parameter must be on or off\n");
-        usrv_client_reply(c, buff, ret);
-        return -1;
+        ret += snprintf(buff+ret, len-ret, "cmd error: the lastest parameter must be on or off\n");
+        goto err_key;
     }
+
+    memset(mbuff, 0, sizeof(mbuff));
     /* match mods */
     for(i=1; i < argc-1; i++)
     {
@@ -187,7 +191,8 @@ static int plog_command(int argc, char *argv[], char *buff, int len, void *user)
 
     if(0 == strcmp("on", argv[i]))
     {
-        plog_con_on(c->sfd, &c->addr, c->len);
+        cmd_client(&caddr, &clen);  /* get client address */
+        plog_con_on(cmd_srv_fd(), &caddr, clen);
         if(0 != key)
             plog_key_on(key);
         ret += snprintf(buff+ret, sizeof(buff)-ret, "/*** plog %s on ***/\n", 0==strlen(mbuff)? "key" :mbuff);
@@ -202,11 +207,7 @@ static int plog_command(int argc, char *argv[], char *buff, int len, void *user)
     }
 
     ret += snprintf(buff+ret, sizeof(buff)-ret, "\n");
-    
-    /* send all information to client */
-    if(ret)
-        usrv_client_reply(c, buff, ret);
-
-    return 0;
+err_key:
+err_argc: 
+    return ret;
 }
-#endif
