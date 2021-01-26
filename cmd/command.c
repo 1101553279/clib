@@ -32,10 +32,12 @@ struct cmd_manager{
 };
 
 enum{
+    PARSE_ERR,
     NOT_FOUND,
     MAX_FAIL,
 };
 const char *fail_list[MAX_FAIL] = {
+    "command parse fail\n",
     "command not found\n",
 };
 static struct cmd_manager cm_obj;
@@ -74,11 +76,6 @@ err_pthread:
     close(cm->sfd);
 err_srv:
     return;
-}
-/* for help command */
-struct list_head *cmd_head(void)
-{
-    return &cm_obj.hd;
 }
 
 /* find command */
@@ -124,14 +121,19 @@ u16_t cmd_info_iterate(char *buff, u16_t len, command_info_iterate_cb_t cb, char
     struct cmd_manager *cm = &cm_obj;
     struct list_head *pos = NULL;
     struct command *c = NULL;
+    
+    if(NULL==buff || 0==len || NULL==cb)
+        return 0;
 
     /* fill header information */
-    ret += snprintf(buff+ret, len-ret, "%s", title);
+    if(NULL != title)
+        ret += snprintf(buff+ret, len-ret, "%s", title);
     /* fill each command's information */
     list_for_each(pos, &cm->hd)
     {
         c = list_entry(pos, struct command, head);
-        ret += cb(c, buff+ret, len-ret); 
+        if(NULL != cb)
+            ret += cb(c, buff+ret, len-ret); 
     }
    
     return ret;
@@ -141,6 +143,7 @@ int cmd_add(char *name, char *spec, char *usage, command_cb_t func, void *user)
 {
     struct cmd_manager *cm = &cm_obj;
     struct command *c = NULL;
+
     if(NULL==name || NULL==func)
     {
         log_red("command add fail: %s == NULL\n", (NULL==name)? "name": "func");
@@ -179,6 +182,7 @@ int cmd_add(char *name, char *spec, char *usage, command_cb_t func, void *user)
 int cmd_rmv(char *name)
 {
     struct command *c = NULL;
+
     if(NULL == name)
     {
         log_red("name == NULL\n");
@@ -205,6 +209,9 @@ static u16_t dump_iterate_cb(struct command *c, char *buff, u16_t len)
 {
     u16_t ret = 0;
 
+    if(NULL==c || NULL==buff || 0==len)
+        return 0;
+
     ret += snprintf(buff+ret, len-ret, "%s ", c->name);
     
     return ret;
@@ -216,6 +223,9 @@ u16_t cmd_dump(char *buff, u16_t len)
     struct sockaddr_in *paddr = &cm->caddr;
     u16_t ret = 0;
     
+    if(NULL==buff || 0==len)
+        return 0;
+
     ret += snprintf(buff+ret, len-ret, "/*** command summary ***/\n");
     ret += cmd_info_iterate(buff+ret, len-ret, dump_iterate_cb, "command list: ");
     ret += snprintf(buff+ret, len-ret, "\n");
@@ -291,8 +301,9 @@ static int __fail_reply(u16_t id, struct sockaddr_in *cip, socklen_t clen)
 static int __cmd_exe(struct command *cmd, int argc, char *argv[], struct sockaddr_in *cip, socklen_t clen)
 {
     struct cmd_manager *cm = &cm_obj;
-    int len;
+    int len = 0;
 
+    /* parameter check */
     if(NULL==cmd || 0==argc || NULL==argv || NULL==cip || 0==clen)
     {
         log_red("parameter error: cmd=%p, argc=%d, argv=%p, cip=%p, clen=%d\n", 
@@ -300,6 +311,7 @@ static int __cmd_exe(struct command *cmd, int argc, char *argv[], struct sockadd
         return -1;
     }
 
+    /* command execution */
     if(cmd && cmd->func) 
     {
         len = cmd->func(argc, argv, cm->buff, sizeof(cm->buff), cmd->user);
@@ -319,11 +331,19 @@ static int __do_hand(char *buff, struct sockaddr_in *cip, socklen_t clen)
     struct command *c = NULL;
     struct cmd_manager *cm = &cm_obj;
 
+    if(NULL==buff || NULL==cip || 0==clen)
+        return -1;
+
     /* command parse */
     argc = str_parse(buff, argv, ARY_SIZE(argv));
     if(argc <= 0)
+    {
+        __fail_reply(PARSE_ERR, cip, clen);
         return -1;
-#if 1
+    }
+
+    plog(CMD, "command parse success!\n");
+#if 0
     printf("argc list: %d\n", argc);
     for(i=0; i < argc; i++)
         printf("%s ", argv[i]);
@@ -336,7 +356,7 @@ static int __do_hand(char *buff, struct sockaddr_in *cip, socklen_t clen)
         return -1;
     }
 
-    log_grn("command search success!\n");
+    plog(CMD, "command search success!\n");
      
     if(__cmd_exe(c, argc, argv, cip, clen))
         return -1;

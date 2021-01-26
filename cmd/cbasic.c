@@ -13,7 +13,7 @@ void cbasic_init(void)
 {
 #if 1
     cmd_add("help", "list all commands information", CMD_INDENT"help [cmd]\n", help_command, NULL);
-    cmd_add("dump", "dump module information", CMD_INDENT"dump [help|plog]", dump_command, NULL);
+    cmd_add("dump", "dump module information", CMD_INDENT"dump [help|plog]\n", dump_command, NULL);
 #endif
     return;
 }

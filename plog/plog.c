@@ -36,7 +36,7 @@ void plog_init(void)
     con_init(&p->con);
     memset(p->buff, 0, sizeof(p->buff));
     /* add plog command */
-    cmd_add("plog", "plog execution procedure", CMD_INDENT"plog [key...] on/off\n", plog_command, NULL);
+    cmd_add("plog", "plog execution procedure", CMD_INDENT"plog [run/cmd] on/off\n", plog_command, NULL);
 
     return;
 }
@@ -167,6 +167,8 @@ static int plog_command(int argc, char *argv[], char *buff, int len, void *user)
         arg = argv[i];
         if(0 == strcmp("run", arg))
             key |= PLOG_RUN;
+        else if(0 == strcmp("cmd", arg))
+            key |= PLOG_CMD;
         else
         {
             ret += snprintf(buff+ret, len-ret, "%s %s %s <- no this mod\n", argv[0], mbuff, arg);

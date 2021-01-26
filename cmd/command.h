@@ -6,6 +6,7 @@
 #include <netinet/ip.h>
 #include "btype.h"
 #include "blist.h"
+#include "plog.h"
 
 #define CMD_INDENT  "       "
 
