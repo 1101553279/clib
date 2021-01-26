@@ -9,26 +9,22 @@
 #include <pthread.h>
 #include <string.h>
 #include <stdlib.h>
+#include "cbasic.h"
 
-#define CMD_MAX_ARGC 10
-#define SRV_PORT 3000
-#define CMD_BUFF_SIZE 2048
-
-struct command;
-struct command{
-    struct list_head head;  /* double list */
-	char *name; /* command name */
-	char *spec; /* command help information */
-	char *usage; /* command usage */
-    void *user; /* user data */
-	command_cb_t func; /*command execution function */
-};
+#define CMD_MAX_ARGC    10
+#define CMD_SRV_PORT    3000
+#define CMD_BUFF_SIZE   2048
 
 struct cmd_manager{
     struct list_head hd;    /* command list head */
-    int sfd;        /* server file description */
-    pthread_t tid;  /* thread id */
-    struct cmd_data cdata;  /* for call command */
+    int sfd;                /* server file description */
+    pthread_t tid;          /* thread id */
+
+    /* client information */
+    struct sockaddr_in caddr;
+    socklen_t clen;
+
+    /* for reply message to PC host */
     char buff[CMD_BUFF_SIZE];
 };
 
@@ -42,20 +38,17 @@ const char *fail_list[MAX_FAIL] = {
 static struct cmd_manager cm_obj;
 
 static void *__cmd_routine(void *arg);
-static void __cmder_init(struct cmd_cmder *cmder, int sfd);
-static void __sender_init(struct cmd_sender *sender, struct sockaddr_in *ip, socklen_t len);
 static int __srv_init(u16_t port);
 static int __cmd_reply(const char *buff, struct sockaddr_in *cip, socklen_t clen);
 /* init command module */
 void cmd_init(void)
 {
     struct cmd_manager *cm = &cm_obj;
-    struct cmd_data *cdata = &cm->cdata;
     int ret;
     
     INIT_LIST_HEAD(&cm->hd);
 
-    cm->sfd = __srv_init(SRV_PORT);
+    cm->sfd = __srv_init(CMD_SRV_PORT);
     if(cm->sfd < 0)
     {
         log_red("srv init fail!\n");
@@ -69,8 +62,8 @@ void cmd_init(void)
         goto err_pthread;
     }
     
-    memset(&cm->cdata, 0, sizeof(cm->cdata));
-    __cmder_init(&cdata->cmder, cm->sfd);
+    /* basic command add */
+    cbasic_init();
     
     return;
 
@@ -78,6 +71,11 @@ err_pthread:
     close(cm->sfd);
 err_srv:
     return;
+}
+/* for help command */
+struct list_head *cmd_head(void)
+{
+    return &cm_obj.hd;
 }
 
 /* find command */
@@ -99,6 +97,25 @@ struct command *cmd_find(char *name)
     }
 
     return NULL;
+}
+/* fill information into buff */
+int cmd_info_iterate(char *buff, int len, command_info_iterate_cb_t cb, char *title)
+{
+    int ret = 0;
+    struct cmd_manager *cm = &cm_obj;
+    struct list_head *pos = NULL;
+    struct command *c = NULL;
+
+    /* fill header information */
+    ret += snprintf(buff+ret, len-ret, "%s", title);
+    /* fill each command's information */
+    list_for_each(pos, &cm->hd)
+    {
+        c = list_entry(pos, struct command, head);
+        ret += cb(c, buff+ret, len-ret); 
+    }
+   
+    return ret;
 }
 /* add a command */
 int cmd_add(char *name, char *spec, char *usage, command_cb_t func, void *user)
@@ -166,25 +183,6 @@ int cmd_rmv(char *name)
 }
 
 /****** static function list ******/
-static void __cmder_init(struct cmd_cmder *cmder, int sfd)
-{
-    if(cmder)
-    {
-        cmder->sfd = sfd;
-        cmder->sport = SRV_PORT;
-    }
-    return;
-}
-static void __sender_init(struct cmd_sender *sender, struct sockaddr_in *ip, socklen_t len)
-{
-    if(sender)
-    {
-        memcpy(&sender->addr, ip, sizeof(struct sockaddr_in));
-        sender->len = len;
-    }
-
-    return;
-}
 static int __srv_init(u16_t port)
 {
 	struct sockaddr_in servaddr;
@@ -243,10 +241,10 @@ static int __fail_reply(u16_t id, struct sockaddr_in *cip, socklen_t clen)
     return 0;
 }
 
+/* execute a command */
 static int __cmd_exe(struct command *cmd, int argc, char *argv[], struct sockaddr_in *cip, socklen_t clen)
 {
     struct cmd_manager *cm = &cm_obj;
-    struct cmd_data *cdata = &cm->cdata;
     int len;
 
     if(NULL==cmd || 0==argc || NULL==argv || NULL==cip || 0==clen)
@@ -256,14 +254,11 @@ static int __cmd_exe(struct command *cmd, int argc, char *argv[], struct sockadd
         return -1;
     }
 
-    /* set sender information*/
-    __sender_init(&cdata->sender, cip, clen);
-
     if(cmd && cmd->func) 
     {
-        len = cmd->func(argc, argv, cm->buff, sizeof(cm->buff), cdata, cmd->user);
+        len = cmd->func(argc, argv, cm->buff, sizeof(cm->buff), cmd->user);
         if(len > 0)
-            __cmd_reply(cm->buff, cip, clen);
+            __cmd_reply(cm->buff, cip, clen);   /* send command execute log to PC host */
     }
 
     return 0;
@@ -282,7 +277,7 @@ static int __do_hand(char *buff, struct sockaddr_in *cip, socklen_t clen)
     argc = str_parse(buff, argv, ARY_SIZE(argv));
     if(argc <= 0)
         return -1;
-#if 0
+#if 1
     printf("argc list: %d\n", argc);
     for(i=0; i < argc; i++)
         printf("%s ", argv[i]);
@@ -323,3 +318,4 @@ static void *__cmd_routine(void *arg)
     }
     return NULL;
 }
+

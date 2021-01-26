@@ -1,6 +1,6 @@
 
 
-set(SOURCE_FILES command.c)
+set(SOURCE_FILES command.c cbasic.c)
 
 
 #message("SOURCE_FILES = ${SOURCE_FILES}")
