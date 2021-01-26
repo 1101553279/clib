@@ -9,6 +9,10 @@
 #include <string.h>
 #include <stdlib.h>
 #include "cbasic.h"
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 
 #define CMD_MAX_ARGC    10
 #define CMD_SRV_PORT    3000
@@ -114,9 +118,9 @@ int cmd_client(struct sockaddr_in *addr, socklen_t *len)
     return 0;
 }
 /* fill information into buff */
-int cmd_info_iterate(char *buff, int len, command_info_iterate_cb_t cb, char *title)
+u16_t cmd_info_iterate(char *buff, u16_t len, command_info_iterate_cb_t cb, char *title)
 {
-    int ret = 0;
+    u16_t ret = 0;
     struct cmd_manager *cm = &cm_obj;
     struct list_head *pos = NULL;
     struct command *c = NULL;
@@ -196,6 +200,33 @@ int cmd_rmv(char *name)
 
     return 0;
 }
+
+static u16_t dump_iterate_cb(struct command *c, char *buff, u16_t len)
+{
+    u16_t ret = 0;
+
+    ret += snprintf(buff+ret, len-ret, "%s ", c->name);
+    
+    return ret;
+}
+/* dump command module information */
+u16_t cmd_dump(char *buff, u16_t len)
+{
+    struct cmd_manager *cm = &cm_obj;
+    struct sockaddr_in *paddr = &cm->caddr;
+    u16_t ret = 0;
+    
+    ret += snprintf(buff+ret, len-ret, "/*** command summary ***/\n");
+    ret += cmd_info_iterate(buff+ret, len-ret, dump_iterate_cb, "command list: ");
+    ret += snprintf(buff+ret, len-ret, "\n");
+    ret += snprintf(buff+ret, len-ret, "srv fd : %d\n", cm->sfd);
+    ret += snprintf(buff+ret, len-ret, "tid    : %lu\n", cm->tid);
+    ret += snprintf(buff+ret, len-ret, "caddr  : %s\n", inet_ntoa(paddr->sin_addr) );
+    ret += snprintf(buff+ret, len-ret, "cport  : %d\n", ntohs(paddr->sin_port) );
+
+    return ret;
+}
+
 
 /****** static function list ******/
 static int __srv_init(u16_t port)
@@ -305,7 +336,7 @@ static int __do_hand(char *buff, struct sockaddr_in *cip, socklen_t clen)
         return -1;
     }
 
-    log_red("command search success!\n");
+    log_grn("command search success!\n");
      
     if(__cmd_exe(c, argc, argv, cip, clen))
         return -1;

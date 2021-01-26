@@ -18,7 +18,7 @@ void cbasic_init(void)
     return;
 }
 /* for get each command usage & spec information */
-int help_iterate_cb(struct command *c, char *buff, int len)
+u16_t help_iterate_cb(struct command *c, char *buff, u16_t len)
 {
     int ret = 0;
 
@@ -59,10 +59,14 @@ int dump_command(int argc, char *argv[], char *buff, int len, void *user)
     if(argc == 2)
     {
         if(0 ==strcmp(argv[1], "plog"))
-            ret += plog_dump(buff+ret, sizeof(buff)-ret);
+            ret += plog_dump(buff+ret, len-ret);
+        else if(0 == strcmp(argv[1], "cmd"))
+            ret += cmd_dump(buff+ret, len-ret);
+        else
+            ret += snprintf(buff+ret, len-ret, "%s %s <- no this module\n", argv[0], argv[1]);
     }
     else
-        ret += snprintf(buff+ret, sizeof(buff)-ret, "parameter error!\n");
+        ret += snprintf(buff+ret, len-ret, "parameter error!\n");
 
     return ret;
 }

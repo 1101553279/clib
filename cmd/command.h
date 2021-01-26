@@ -13,7 +13,6 @@ struct command;
 typedef int (*command_cb_t)(int argc, char *argv[], 
         char *buff, int len, void *user);
 
-
 #define CMD_NAME(c)     ((c)->name)
 #define CMD_SPEC(c)     ((c)->spec)
 #define CMD_USAGE(c)    ((c)->usage)
@@ -40,10 +39,11 @@ int cmd_srv_fd(void);
 int cmd_client(struct sockaddr_in *addr, socklen_t *len);
 
 /* eg: for help command */
-typedef int (*command_info_iterate_cb_t)(struct command *c, char *buff, int len);
-int cmd_info_iterate(char *buff, int len, command_info_iterate_cb_t cb, char *title);
+typedef u16_t (*command_info_iterate_cb_t)(struct command *c, char *buff, u16_t len);
+u16_t cmd_info_iterate(char *buff, u16_t len, command_info_iterate_cb_t cb, char *title);
 /* add a command */
 int cmd_add(char *name, char *spec, char *usage, command_cb_t func, void *user);
 int cmd_rmv(char *name);
 
+u16_t cmd_dump(char *buff, u16_t len);
 #endif
