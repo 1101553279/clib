@@ -7,10 +7,10 @@
 #include <arpa/inet.h>
 #include "command.h"
 
-#define BUF_SIZE    1024
+#define PBUF_SIZE    1024
 
 struct con{
-    int ufd; /* udp file description */
+    int ufd;        /* udp file description */
     struct sockaddr_in caddr;/* client address */
     socklen_t clen; /* client address length*/
 };
@@ -18,13 +18,17 @@ struct con{
 struct plog{
     u32_t key;              /* debug key, each bit indicate a mod */
     struct con con;         /* for send msg */
-    char buff[BUF_SIZE];    /* for format log */
+    char buff[PBUF_SIZE];    /* for format log */
 };
 
 static struct plog plog_obj;
 static void con_init(struct con *c);
 static void con_send(struct con *c, char *buff, u16_t len);
 static int plog_command(int argc, char *argv[], char *buff, int len, void *user);
+static void plog_key_on(u32_t mods);
+static void plog_key_off(u32_t mods);
+static void plog_con_on(int ufd, struct sockaddr_in *addr, socklen_t len);
+static void plog_con_off(void);
 
 
 /* init plog module */
@@ -47,18 +51,6 @@ u8_t plog_key_is(u32_t mods)
     return plog_obj.key & mods? 1: 0;
 }
 
-/* open the mods's key */
-void plog_key_on(u32_t mods)
-{
-    plog_obj.key |= mods;
-    return;
-}
-/* close the mods's key */
-void plog_key_off(u32_t mods)
-{
-    plog_obj.key &= ~mods;
-    return;
-}
 /* format message, and send to client  */
 void plog_out(char *mod, const char *fmt, const char *func, int line, ...)
 {
@@ -67,51 +59,20 @@ void plog_out(char *mod, const char *fmt, const char *func, int line, ...)
     va_list ap;
     char *buff = p->buff;
 
-    memset(buff, 0, BUF_SIZE);
+    memset(buff, 0, PBUF_SIZE);
 
     /* format log */
-    ret += snprintf(buff+ret, BUF_SIZE-ret, "%s: %d ## %s ## ", func, line, mod);
+    ret += snprintf(buff+ret, PBUF_SIZE-ret, "%s: %d ## %s ## ", func, line, mod);
     va_start(ap, line);
-    ret += vsnprintf(buff+ret, BUF_SIZE-ret, fmt, ap);
+    ret += vsnprintf(buff+ret, PBUF_SIZE-ret, fmt, ap);
     va_end(ap);
 
     /* send log to client */
     con_send(&p->con, buff, ret);
-    return;
-}
-
-/* set client's connection information */
-void plog_con_on(int ufd, struct sockaddr_in *addr, socklen_t len)
-{
-    struct con *c = &plog_obj.con;
-
-    if(NULL==addr)
-        return;
-
-    /* set client connection information */
-    c->ufd = ufd;
-    memcpy(&c->caddr, addr, sizeof(struct sockaddr_in));
-    c->clen = len;
-
-    /* set PLOG_KEY on*/
-    plog_obj.key |= PLOG_KEY;
 
     return;
 }
 
-/* clear client's connect information */
-void plog_con_off(void)
-{
-    struct con *c = &plog_obj.con;
-
-    /* clear all information */
-    con_init(c);
-
-    /* set PLOG_KEY off*/
-    plog_obj.key &= ~PLOG_KEY;
-
-    return;
-}
 void plog_uninit(void)
 {
     return;
@@ -200,6 +161,7 @@ err_key:
 err_argc: 
     return ret;
 }
+
 /* init connection module */
 static void con_init(struct con *c)
 {
@@ -214,8 +176,53 @@ static void con_init(struct con *c)
 /* send log to client */
 static void con_send(struct con *c, char *buff, u16_t len)
 {
-    /* has client */
-    if(c->ufd > 0)
+    /* has a client */
+    if(c && c->ufd > 0 && NULL!=buff && 0!=len)
         sendto(c->ufd, buff, len, 0, (const struct sockaddr*)&c->caddr, c->clen);
+
+    return;
+}
+/* open the mods's key */
+static void plog_key_on(u32_t mods)
+{
+    plog_obj.key |= mods;
+    return;
+}
+/* close the mods's key */
+static void plog_key_off(u32_t mods)
+{
+    plog_obj.key &= ~mods;
+    return;
+}
+/* set client's connection information */
+static void plog_con_on(int ufd, struct sockaddr_in *addr, socklen_t len)
+{
+    struct con *c = &plog_obj.con;
+
+    if(NULL==addr)
+        return;
+
+    /* set client connection information */
+    c->ufd = ufd;
+    memcpy(&c->caddr, addr, sizeof(struct sockaddr_in));
+    c->clen = len;
+
+    /* set PLOG_KEY on*/
+    plog_obj.key |= PLOG_KEY;
+
+    return;
+}
+
+/* clear client's connect information */
+static void plog_con_off(void)
+{
+    struct con *c = &plog_obj.con;
+
+    /* clear all information */
+    con_init(c);
+
+    /* set PLOG_KEY off*/
+    plog_obj.key &= ~PLOG_KEY;
+
     return;
 }

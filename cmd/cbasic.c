@@ -6,7 +6,7 @@
 #include "plog.h"
 
 static int help_command(int argc, char *argv[], char *buff, int len, void *user);
-int dump_command(int argc, char *argv[], char *buff, int len, void *user);
+static int dump_command(int argc, char *argv[], char *buff, int len, void *user);
 
 /* init basic command module */
 void cbasic_init(void)
@@ -51,7 +51,7 @@ static int help_command(int argc, char *argv[], char *buff, int len, void *user)
 }
 
 /* dump command function */
-int dump_command(int argc, char *argv[], char *buff, int len, void *user)
+static int dump_command(int argc, char *argv[], char *buff, int len, void *user)
 {
     int ret = 0;
 
