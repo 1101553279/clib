@@ -15,6 +15,8 @@ int main(int argc, char *argv[])
     /* init plog module */
     plog_init();
 
+    cmd_tree_print();   /* for debug */
+
     while(1)
     {
         sleep(1);

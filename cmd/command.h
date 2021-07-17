@@ -20,7 +20,8 @@ typedef int (*command_cb_t)(int argc, char *argv[],
 
 /* help command need this structure */
 struct command{
-    struct list_head head;  /* double list */
+    struct command *l;      /* left child */
+    struct command *r;      /* right child */
 	char *name;             /* command name */
 	char *spec;             /* command help information */
 	char *usage;            /* command usage */
@@ -43,8 +44,13 @@ int cmd_client(struct sockaddr_in *addr, socklen_t *len);
 typedef u16_t (*command_info_iterate_cb_t)(struct command *c, char *buff, u16_t len);
 u16_t cmd_info_iterate(char *buff, u16_t len, command_info_iterate_cb_t cb, char *title);
 /* add a command */
+struct command *cmd_new(char *name, char *spec, char *usage, command_cb_t func, void *user);
+int cmd_copy(struct command *dst, struct command *src);
+int copy_replace(struct command *pn, char *name, char *spec, char *usage, command_cb_t func, void *user);
 int cmd_add(char *name, char *spec, char *usage, command_cb_t func, void *user);
+int cmd_insert(char *name, char *spec, char *usage, command_cb_t func, void *user);
 int cmd_rmv(char *name);
 
 u16_t cmd_dump(char *buff, u16_t len);
+void cmd_tree_print(void);
 #endif

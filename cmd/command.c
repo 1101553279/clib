@@ -1,10 +1,12 @@
 #include "command.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 #include "util.h"
 #include "blist.h"
 #include "log.h"
 #include <unistd.h>
+#define _GNU_SOURCE
 #include <pthread.h>
 #include <string.h>
 #include <stdlib.h>
@@ -13,13 +15,13 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-
+#define CMD_TDNAME      "shell routine"
 #define CMD_MAX_ARGC    10
 #define CMD_SRV_PORT    3000
 #define CMD_BUFF_SIZE   2048
 
 struct cmd_manager{
-    struct list_head hd;    /* command list head */
+    struct command *root;   /* root pointer */
     int sfd;                /* server file description */
     pthread_t tid;          /* thread id */
 
@@ -32,40 +34,49 @@ struct cmd_manager{
 };
 
 enum{
-    PARSE_ERR,
-    NOT_FOUND,
+    CMD_PARSE_ERR,
+    CMD_NOT_FOUND,
     MAX_FAIL,
 };
-const char *fail_list[MAX_FAIL] = {
+const char *cmd_fail_list[MAX_FAIL] = {
     "command parse fail\n",
     "command not found\n",
 };
 static struct cmd_manager cm_obj;
 
-static void *__cmd_routine(void *arg);
-static int __srv_init(u16_t port);
-static int __cmd_reply(const char *buff, struct sockaddr_in *cip, socklen_t clen);
+static int cmd_do_hand(char *buff, struct sockaddr_in *cip, socklen_t clen);
+static void *cmd_routine(void *arg);
+static int cmd_srv_init(u16_t port);
+static int cmd_reply(const char *buff, struct sockaddr_in *cip, socklen_t clen);
+static int cmd_fail_reply(u16_t id, struct sockaddr_in *cip, socklen_t clen);
+static struct command *cmd_node_find(struct command *pn, char *name);
+static u16_t cmd_iterate(struct command *tree, char *buff, u16_t len, command_info_iterate_cb_t cb);
+static void cmd_tree_node_print(struct command *pn, int level);
+static void cmd_tree_node_value_print(char ch, int level, char *fmt, ...);
+static u16_t cmd_dump_literate_cb(struct command *c, char *buff, u16_t len);
+static int cmd_exe(struct command *cmd, int argc, char *argv[], struct sockaddr_in *cip, socklen_t clen);
 /* init command module */
 void cmd_init(void)
 {
     struct cmd_manager *cm = &cm_obj;
     int ret;
-    
-    INIT_LIST_HEAD(&cm->hd);
 
-    cm->sfd = __srv_init(CMD_SRV_PORT);
+    cm->root = NULL;
+
+    cm->sfd = cmd_srv_init(CMD_SRV_PORT);
     if(cm->sfd < 0)
     {
         log_red("srv init fail!\n");
         goto err_srv;
     }
     /* this task is for recviving command from PC host */
-    ret = pthread_create(&cm->tid, NULL, __cmd_routine, NULL);
+    ret = pthread_create(&cm->tid, NULL, cmd_routine, NULL);
     if(ret < 0)
     {
         log_red("thread new fail!\n");
         goto err_pthread;
     }
+//    pthread_setname_np(cm->tid, CMD_TDNAME);
     
     /* basic command add */
     cbasic_init();
@@ -81,22 +92,12 @@ err_srv:
 /* find command */
 struct command *cmd_find(char *name)
 {
-    struct command *c = NULL;
     struct cmd_manager *cm = &cm_obj; 
-    struct list_head *pos;
 
     if(NULL == name)
         return NULL;
 
-    /* iterate command list */
-    list_for_each(pos, &cm->hd)
-    {
-        c = list_entry(pos, struct command, head);
-        if(0 == strcmp(c->name, name))
-            return c;
-    }
-
-    return NULL;
+    return cmd_node_find(cm->root, name);
 }
 /* command manager information */
 int cmd_srv_fd(void)
@@ -119,8 +120,6 @@ u16_t cmd_info_iterate(char *buff, u16_t len, command_info_iterate_cb_t cb, char
 {
     u16_t ret = 0;
     struct cmd_manager *cm = &cm_obj;
-    struct list_head *pos = NULL;
-    struct command *c = NULL;
     
     if(NULL==buff || 0==len || NULL==cb)
         return 0;
@@ -129,51 +128,115 @@ u16_t cmd_info_iterate(char *buff, u16_t len, command_info_iterate_cb_t cb, char
     if(NULL != title)
         ret += snprintf(buff+ret, len-ret, "%s", title);
     /* fill each command's information */
-    list_for_each(pos, &cm->hd)
-    {
-        c = list_entry(pos, struct command, head);
-        if(NULL != cb)
-            ret += cb(c, buff+ret, len-ret); 
-    }
+    ret += cmd_iterate(cm->root, buff+ret, len-ret, cb);
    
     return ret;
 }
+
+struct command **cmd_ppn_find(struct command **ppn, char *name)
+{
+    int ret = 0;
+
+    while(NULL != *ppn)
+    {
+        ret = strcmp(name, (*ppn)->name);
+        if(ret < 0)
+            ppn = &((*ppn)->l);
+        else if(ret > 0)
+            ppn = &((*ppn)->r);
+        else                /* find it */
+            break;
+    }
+
+    return ppn;
+}
+
+struct command *cmd_new(char *name, char *spec, char *usage, command_cb_t func, void *user)
+{
+    struct command *c;
+
+    c = malloc(sizeof(struct command));
+    if(NULL != c)
+    {
+//        printf("add: name=%s, spec=%s, usage=%s, func=%p\r\n", name, spec, usage, func);
+        c->l = NULL;        /* must do */
+        c->r = NULL;
+        c->name = name;
+        c->spec = spec;
+        c->usage = usage;
+        c->func = func;
+        c->user = user;
+    }
+    
+    return c;
+}
+
 /* add a command */
 int cmd_add(char *name, char *spec, char *usage, command_cb_t func, void *user)
 {
     struct cmd_manager *cm = &cm_obj;
-    struct command *c = NULL;
+    struct command **ppn;
 
     if(NULL==name || NULL==func)
     {
         log_red("command add fail: %s == NULL\n", (NULL==name)? "name": "func");
         return -1;
     }
-    /* decide whether this command has added */ 
-    c = cmd_find(name);
-    if(NULL != c)
+
+    ppn = cmd_ppn_find(&(cm->root), name);
+    if(NULL != *ppn)
+        log_red("command '%s' has been added -> substitute\r\n", name);
+
+    *ppn = cmd_new(name, spec, usage, func, user);
+
+    return NULL!=*ppn? 0: -1;
+}
+
+int cmd_insert(char *name, char *spec, char *usage, command_cb_t func, void *user)
+{
+    struct cmd_manager *cm = &cm_obj;
+    struct command **ppn;
+
+    if(NULL==name || NULL==func)
     {
-        log_red("command '%s' has added!\n", name);
+        log_red("command insert fail: %s == NULL\n", (NULL==name)? "name": "func");
         return -1;
     }
 
-    c = (struct command *)malloc(sizeof(struct command));
-    if(NULL == c)
+    ppn = cmd_ppn_find(&(cm->root), name);
+    if(NULL != *ppn)
     {
-        log_red("command add fail: malloc fail!\n");
-        return -1;
+        log_red("command '%s' has been added -> substitute\r\n", name);
+        copy_replace(*ppn, name, spec, usage, func, user);
     }
+    else
+        *ppn = cmd_new(name, spec, usage, func, user);
 
-    /* init a command information */
-    INIT_LIST_HEAD(&c->head);
-    c->name = name;
-    c->spec = spec;
-    c->usage = usage;
-    c->func = func;
-    c->user = user;
+    return NULL!=*ppn? 0: -1;
 
-    /* add to command list */
-    list_add(&c->head, &cm->hd);
+}
+
+int cmd_copy(struct command *dst, struct command *src)
+{
+    dst->name = src->name;
+    dst->spec = src->spec;
+    dst->usage = src->usage;
+    dst->func = src->func;
+    dst->user = src->user;
+
+    return 0;
+}
+
+int copy_replace(struct command *pn, char *name, char *spec, char *usage, command_cb_t func, void *user)
+{
+    if(NULL == pn)
+        return -1;
+
+    pn->name = name;
+    pn->spec = spec;
+    pn->usage = usage;
+    pn->func = func;
+    pn->user = user;
 
     return 0;
 }
@@ -181,41 +244,55 @@ int cmd_add(char *name, char *spec, char *usage, command_cb_t func, void *user)
 /* delete a command from command list */
 int cmd_rmv(char *name)
 {
+    struct cmd_manager *cm = &cm_obj; 
     struct command *c = NULL;
+    struct command **ppn;
 
     if(NULL == name)
     {
         log_red("name == NULL\n");
         return -1;
     }
-
-    /* search this command */
-    c = cmd_find(name);
-    if(NULL == c)
+    
+    ppn = cmd_ppn_find(&(cm->root), name);
+    if(NULL == *ppn)
     {
         log_red("not found this command\n");
         return -1; 
     }
-    /* delete from command list */
-    list_del(&c->head);
+    
+    c = *ppn;
+    if(NULL!=c->l && NULL!=c->r)
+    {
+        ppn = &((*ppn)->l);
+        while(NULL != (*ppn)->r)
+            ppn = &((*ppn)->r);
 
-    /* free command space */
+        cmd_copy(c, *ppn);      /* copy */
+
+        c = *ppn;     /* save it for freeing */
+    }
+    *ppn = (NULL==(*ppn)->l)? (*ppn)->r: (*ppn)->l;
+
     free(c);
 
     return 0;
 }
 
-static u16_t dump_iterate_cb(struct command *c, char *buff, u16_t len)
+
+u16_t cmd_list_dump(struct command *n, char *buff, u16_t len)
 {
-    u16_t ret = 0;
+    u16_t ret = 0; 
+    if(NULL != n)
+    {
+        ret += cmd_list_dump(n->l, buff+ret, len-ret);
+        ret += snprintf(buff+ret, len-ret, "%s ", n->name);
+        ret += cmd_list_dump(n->r, buff+ret, len-ret);
+    }
 
-    if(NULL==c || NULL==buff || 0==len)
-        return 0;
-
-    ret += snprintf(buff+ret, len-ret, "%s ", c->name);
-    
     return ret;
 }
+
 /* dump command module information */
 u16_t cmd_dump(char *buff, u16_t len)
 {
@@ -227,7 +304,7 @@ u16_t cmd_dump(char *buff, u16_t len)
         return 0;
 
     ret += snprintf(buff+ret, len-ret, "/*** command summary ***/\n");
-    ret += cmd_info_iterate(buff+ret, len-ret, dump_iterate_cb, "command list: ");
+    ret += cmd_info_iterate(buff+ret, len-ret, cmd_dump_literate_cb, "command list: ");
     ret += snprintf(buff+ret, len-ret, "\n");
     ret += snprintf(buff+ret, len-ret, "srv fd : %d\n", cm->sfd);
     ret += snprintf(buff+ret, len-ret, "tid    : %lu\n", cm->tid);
@@ -237,9 +314,87 @@ u16_t cmd_dump(char *buff, u16_t len)
     return ret;
 }
 
+void cmd_tree_print(void)
+{
+   struct cmd_manager *cm = &cm_obj; 
+   printf("*** cmd tree summary ***\r\n");
+   cmd_tree_node_print(cm->root, 0);
+}
 
 /****** static function list ******/
-static int __srv_init(u16_t port)
+static u16_t cmd_dump_literate_cb(struct command *c, char *buff, u16_t len)
+{
+    u16_t ret = 0;
+
+    if(NULL==c || NULL==buff || 0==len)
+        return 0;
+
+    ret += snprintf(buff+ret, len-ret, "%s ", c->name);
+    
+    return ret;
+}
+
+static void cmd_tree_node_value_print(char ch, int level, char *fmt, ...)
+{
+    int i = 0; 
+    for(i=0; i < level; i++)
+        putchar(ch);
+
+    va_list ap;
+    va_start(ap, fmt);
+    vprintf(fmt, ap);
+    va_end(ap);
+
+    return;
+}
+
+static void cmd_tree_node_print(struct command *pn, int level)
+{
+    if(NULL == pn)
+        cmd_tree_node_value_print('\t', level, "~\r\n");
+    else
+    {
+        cmd_tree_node_print(pn->l, level+1);
+        cmd_tree_node_value_print('\t', level, "%s\r\n", pn->name);
+        cmd_tree_node_print(pn->r, level+1);
+    }
+}
+
+static struct command *cmd_node_find(struct command *pn, char *name)
+{
+    int ret = 0;
+
+    while(NULL != pn)
+    {
+        ret = strcmp(name, pn->name);
+        if(ret < 0)
+            pn = pn->l;
+        else if(ret > 0)
+            pn = pn->r; 
+        else
+            break;
+    }
+
+    return pn;
+}
+
+static u16_t cmd_iterate(struct command *tree, char *buff, u16_t len, command_info_iterate_cb_t cb)
+{
+    u16_t ret = 0;
+
+    if(NULL != tree)
+    {
+        ret += cmd_iterate(tree->l, buff+ret, len-ret, cb);
+        ret += cb(tree, buff+ret, len-ret);
+        ret += cmd_iterate(tree->r, buff+ret, len-ret, cb);
+    }
+
+    return ret;
+}
+
+
+/****** static function list ******/
+static int cmd_srv_init(u16_t port)
 {
 	struct sockaddr_in servaddr;
     int sfd;
@@ -273,7 +428,7 @@ err_socket:
 }
 
 /* reply message to PC host */
-static int __cmd_reply(const char *buff, struct sockaddr_in *cip, socklen_t clen)
+static int cmd_reply(const char *buff, struct sockaddr_in *cip, socklen_t clen)
 {
     struct cmd_manager *cm = &cm_obj;
 
@@ -287,18 +442,18 @@ static int __cmd_reply(const char *buff, struct sockaddr_in *cip, socklen_t clen
 }
 
 /* reply fail message to PC host */
-static int __fail_reply(u16_t id, struct sockaddr_in *cip, socklen_t clen)
+static int cmd_fail_reply(u16_t id, struct sockaddr_in *cip, socklen_t clen)
 {
     if(id >= MAX_FAIL)
         return -1;
 
-    __cmd_reply(fail_list[id], cip, clen);
+    cmd_reply(cmd_fail_list[id], cip, clen);
 
     return 0;
 }
 
 /* execute a command */
-static int __cmd_exe(struct command *cmd, int argc, char *argv[], struct sockaddr_in *cip, socklen_t clen)
+static int cmd_exe(struct command *cmd, int argc, char *argv[], struct sockaddr_in *cip, socklen_t clen)
 {
     struct cmd_manager *cm = &cm_obj;
     int len = 0;
@@ -316,14 +471,14 @@ static int __cmd_exe(struct command *cmd, int argc, char *argv[], struct sockadd
     {
         len = cmd->func(argc, argv, cm->buff, sizeof(cm->buff), cmd->user);
         if(len > 0)
-            __cmd_reply(cm->buff, cip, clen);   /* send command execute log to PC host */
+            cmd_reply(cm->buff, cip, clen);   /* send command execute log to PC host */
     }
 
     return 0;
 }
 
 /* hand command from PC host */
-static int __do_hand(char *buff, struct sockaddr_in *cip, socklen_t clen)
+static int cmd_do_hand(char *buff, struct sockaddr_in *cip, socklen_t clen)
 {
     int argc = 0;
     char *argv[CMD_MAX_ARGC];
@@ -338,7 +493,7 @@ static int __do_hand(char *buff, struct sockaddr_in *cip, socklen_t clen)
     argc = str_parse(buff, argv, ARY_SIZE(argv));
     if(argc <= 0)
     {
-        __fail_reply(PARSE_ERR, cip, clen);
+        cmd_fail_reply(CMD_PARSE_ERR, cip, clen);
         return -1;
     }
 
@@ -352,19 +507,19 @@ static int __do_hand(char *buff, struct sockaddr_in *cip, socklen_t clen)
     c = cmd_find(argv[0]);
     if(NULL == c)
     {
-        __fail_reply(NOT_FOUND, cip, clen);
+        cmd_fail_reply(CMD_NOT_FOUND, cip, clen);
         return -1;
     }
 
     plog(CMD, "command search success!\n");
      
-    if(__cmd_exe(c, argc, argv, cip, clen))
+    if(cmd_exe(c, argc, argv, cip, clen))
         return -1;
 
     return 0;
 }
 
-static void *__cmd_routine(void *arg)
+static void *cmd_routine(void *arg)
 {
     struct cmd_manager *cm = &cm_obj;
 	struct sockaddr_in *paddr = &cm->caddr;
@@ -380,7 +535,7 @@ static void *__cmd_routine(void *arg)
         n = recvfrom(cm->sfd, buff, sizeof(buff)-1,
                 MSG_WAITALL, (struct sockaddr*)paddr, plen);
         buff[n] = '\0'; /* append tail character */
-        __do_hand(buff, paddr, *plen);
+        cmd_do_hand(buff, paddr, *plen);
     }
     return NULL;
 }
