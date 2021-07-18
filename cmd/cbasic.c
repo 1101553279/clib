@@ -15,12 +15,22 @@ void cbasic_init(void)
 {
 #if 1
     cmd_add("help", "list all commands information", CMD_INDENT"help [cmd|plog|help]\n", help_command, NULL);
+    printf("add help: cmdsize = %d\r\n", cmd_size());
+    cmd_add("test", "test command function", CMD_INDENT"test\n", test_command, NULL);
+    printf("add test: cmdsize = %d\r\n", cmd_size());
     cmd_add("test", "test command function", CMD_INDENT"test\n", test_command, NULL);
     cmd_add("dump", "dump module information", CMD_INDENT"dump [cmd|plog]\n", dump_command, NULL);
+    printf("add test: cmdsize = %d\r\n", cmd_size());
 #endif
     cmd_tree_print();   /* for debug */
     cmd_insert("test", "test command function", CMD_INDENT"test\n", test_command_replace, NULL);
-//    cmd_rmv("test");
+#if 1
+    cmd_tree_print();   /* for debug */
+    cmd_del("test");
+    cmd_tree_print();
+    cmd_del("dump");
+    cmd_tree_print();
+#endif
     return;
 }
 static int test_command_replace(int argc, char *argv[], char *buff, int len, void *user)

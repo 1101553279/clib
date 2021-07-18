@@ -39,17 +39,20 @@ int cmd_srv_fd(void);
 
 /* sender(PC host) information */
 int cmd_client(struct sockaddr_in *addr, socklen_t *len);
-
-/* eg: for help command */
-typedef u16_t (*command_info_iterate_cb_t)(struct command *c, char *buff, u16_t len);
-u16_t cmd_info_iterate(char *buff, u16_t len, command_info_iterate_cb_t cb, char *title);
 /* add a command */
 struct command *cmd_new(char *name, char *spec, char *usage, command_cb_t func, void *user);
 int cmd_copy(struct command *dst, struct command *src);
-int copy_replace(struct command *pn, char *name, char *spec, char *usage, command_cb_t func, void *user);
+int cmd_replace(struct command *pn, char *name, char *spec, char *usage, command_cb_t func, void *user);
 int cmd_add(char *name, char *spec, char *usage, command_cb_t func, void *user);
 int cmd_insert(char *name, char *spec, char *usage, command_cb_t func, void *user);
-int cmd_rmv(char *name);
+int cmd_del(char *name);
+int cmd_size(void);
+/* eg: for help command */
+typedef u16_t (*command_info_iterate_cb_t)(struct command *c, char *buff, u16_t len);
+u16_t cmd_info_iterate(char *buff, u16_t len, command_info_iterate_cb_t cb, char *title);
+typedef int (*command_iterate_cb_t)(struct command *c, void *user);
+void cmd_iterate(command_iterate_cb_t cb, void *user);
+void cmd_uninit(void);
 
 u16_t cmd_dump(char *buff, u16_t len);
 void cmd_tree_print(void);

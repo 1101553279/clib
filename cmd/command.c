@@ -44,13 +44,15 @@ const char *cmd_fail_list[MAX_FAIL] = {
 };
 static struct cmd_manager cm_obj;
 
+static struct command **cmd_ppn_find(struct command **ppn, char *name);
+static struct command **cmd_max_ppn_find(struct command **ppn);
 static int cmd_do_hand(char *buff, struct sockaddr_in *cip, socklen_t clen);
 static void *cmd_routine(void *arg);
 static int cmd_srv_init(u16_t port);
 static int cmd_reply(const char *buff, struct sockaddr_in *cip, socklen_t clen);
 static int cmd_fail_reply(u16_t id, struct sockaddr_in *cip, socklen_t clen);
 static struct command *cmd_node_find(struct command *pn, char *name);
-static u16_t cmd_iterate(struct command *tree, char *buff, u16_t len, command_info_iterate_cb_t cb);
+static u16_t cmd_internal_iterate(struct command *cur, char *buff, u16_t len, command_info_iterate_cb_t cb);
 static void cmd_tree_node_print(struct command *pn, int level);
 static void cmd_tree_node_value_print(char ch, int level, char *fmt, ...);
 static u16_t cmd_dump_literate_cb(struct command *c, char *buff, u16_t len);
@@ -115,25 +117,9 @@ int cmd_client(struct sockaddr_in *addr, socklen_t *len)
 
     return 0;
 }
-/* fill information into buff */
-u16_t cmd_info_iterate(char *buff, u16_t len, command_info_iterate_cb_t cb, char *title)
-{
-    u16_t ret = 0;
-    struct cmd_manager *cm = &cm_obj;
-    
-    if(NULL==buff || 0==len || NULL==cb)
-        return 0;
 
-    /* fill header information */
-    if(NULL != title)
-        ret += snprintf(buff+ret, len-ret, "%s", title);
-    /* fill each command's information */
-    ret += cmd_iterate(cm->root, buff+ret, len-ret, cb);
-   
-    return ret;
-}
 
-struct command **cmd_ppn_find(struct command **ppn, char *name)
+static struct command **cmd_ppn_find(struct command **ppn, char *name)
 {
     int ret = 0;
 
@@ -151,26 +137,30 @@ struct command **cmd_ppn_find(struct command **ppn, char *name)
     return ppn;
 }
 
-struct command *cmd_new(char *name, char *spec, char *usage, command_cb_t func, void *user)
+int cmd_copy(struct command *dst, struct command *src)
 {
-    struct command *c;
+    dst->name = src->name;
+    dst->spec = src->spec;
+    dst->usage = src->usage;
+    dst->func = src->func;
+    dst->user = src->user;
 
-    c = malloc(sizeof(struct command));
-    if(NULL != c)
-    {
-//        printf("add: name=%s, spec=%s, usage=%s, func=%p\r\n", name, spec, usage, func);
-        c->l = NULL;        /* must do */
-        c->r = NULL;
-        c->name = name;
-        c->spec = spec;
-        c->usage = usage;
-        c->func = func;
-        c->user = user;
-    }
-    
-    return c;
+    return 0;
 }
 
+int cmd_replace(struct command *pn, char *name, char *spec, char *usage, command_cb_t func, void *user)
+{
+    if(NULL == pn)
+        return -1;
+
+    pn->name = name;
+    pn->spec = spec;
+    pn->usage = usage;
+    pn->func = func;
+    pn->user = user;
+
+    return 0;
+}
 /* add a command */
 int cmd_add(char *name, char *spec, char *usage, command_cb_t func, void *user)
 {
@@ -207,7 +197,7 @@ int cmd_insert(char *name, char *spec, char *usage, command_cb_t func, void *use
     if(NULL != *ppn)
     {
         log_red("command '%s' has been added -> substitute\r\n", name);
-        copy_replace(*ppn, name, spec, usage, func, user);
+        cmd_replace(*ppn, name, spec, usage, func, user);
     }
     else
         *ppn = cmd_new(name, spec, usage, func, user);
@@ -216,33 +206,9 @@ int cmd_insert(char *name, char *spec, char *usage, command_cb_t func, void *use
 
 }
 
-int cmd_copy(struct command *dst, struct command *src)
-{
-    dst->name = src->name;
-    dst->spec = src->spec;
-    dst->usage = src->usage;
-    dst->func = src->func;
-    dst->user = src->user;
-
-    return 0;
-}
-
-int copy_replace(struct command *pn, char *name, char *spec, char *usage, command_cb_t func, void *user)
-{
-    if(NULL == pn)
-        return -1;
-
-    pn->name = name;
-    pn->spec = spec;
-    pn->usage = usage;
-    pn->func = func;
-    pn->user = user;
-
-    return 0;
-}
 
 /* delete a command from command list */
-int cmd_rmv(char *name)
+int cmd_del(char *name)
 {
     struct cmd_manager *cm = &cm_obj; 
     struct command *c = NULL;
@@ -262,23 +228,158 @@ int cmd_rmv(char *name)
     }
     
     c = *ppn;
-    if(NULL!=c->l && NULL!=c->r)
+    if(NULL!=c->l && NULL!=c->r)    /* special condition */
     {
-        ppn = &((*ppn)->l);
-        while(NULL != (*ppn)->r)
-            ppn = &((*ppn)->r);
-
-        cmd_copy(c, *ppn);      /* copy */
-
-        c = *ppn;     /* save it for freeing */
+        ppn = cmd_max_ppn_find(&((c)->l));
+        cmd_copy(c, *ppn);          /* copy */
+        c = *ppn;                   /* change command pointer that is for freeing */
     }
-    *ppn = (NULL==(*ppn)->l)? (*ppn)->r: (*ppn)->l;
+    *ppn = (NULL==c->l)? c->r: c->l;
 
     free(c);
 
     return 0;
 }
 
+int cmd_internal_size_cb(struct command *c, void *user)
+{
+    (*(int *)user)++;
+
+    return 0;
+}
+int cmd_size(void)
+{
+    int count = 0;
+
+    cmd_iterate(cmd_internal_size_cb, &count);
+
+    return count;
+}
+
+struct cmd_internal_info{
+    char *buff;
+    u16_t len;
+    command_info_iterate_cb_t cb;
+};
+int cmd_internal_info_cb(struct command *c, void *user)
+{
+    struct cmd_internal_info *info = (struct cmd_internal_info *)user;
+    u16_t ret = 0;
+
+    ret += info->cb(c, info->buff+ret, info->len-ret);
+
+    info->buff += ret;
+    info->len -= ret;
+
+    return 0;
+}
+/* fill information into buff */
+u16_t cmd_info_iterate(char *buff, u16_t len, command_info_iterate_cb_t cb, char *title)
+{
+    u16_t ret = 0;
+    struct cmd_manager *cm = &cm_obj;
+    struct cmd_internal_info info = {buff, len, cb};
+    
+    if(NULL==buff || 0==len || NULL==cb)
+        return 0;
+
+    /* fill header information */
+    if(NULL != title)
+        ret += snprintf(buff+ret, len-ret, "%s", title);
+    /* fill each command's information */
+//    ret += cmd_internal_iterate(cm->root, buff+ret, len-ret, cb);
+    info.buff += ret;           /* start address that the buff is available */
+    info.len -= ret;            /* buff's length that is available */
+    cmd_iterate(cmd_internal_info_cb, &info);
+
+    return len - info.len;      /* bytes that has been used */
+}
+void cmd_iterate(command_iterate_cb_t cb, void *user)
+{
+    struct cmd_manager *cm = &cm_obj;
+    struct command *cur = cm->root;
+    struct command *prev;
+
+    while(NULL != cur)
+    {
+        if(NULL == cur->l)
+        {
+            cb(cur, user);          /* use it */
+            cur = cur->r;           /* right children */
+        }
+        else
+        {
+            prev = cur->l;
+            while(NULL!=prev->r && cur!=prev->r)
+                prev = prev->r;
+            if(NULL == prev->r)
+            {
+                prev->r = cur;      /* link */
+                cur = cur->l;       /* left children */
+            }
+            else
+            {
+                prev->r = NULL;     /* unlink */
+                cb(cur, user);      /* use it */
+                cur = cur->r;
+            }
+        }
+    }
+
+    return;
+}
+#if 0
+static void cmd_internal_uninit(struct command *pn)
+{
+    if(NULL != pn)
+    {
+        cmd_internal_uninit(pn->l);
+        cmd_internal_uninit(pn->r);
+        printf("free: %s\r\n", pn->name);   /* must put it in last position */
+        pn->l = NULL;
+        pn->r = NULL;
+        free(pn);
+    }
+}
+#endif
+static void cmd_internal_uninit(struct command *cur)
+{
+    struct command *prev;
+    struct command *next;
+
+    while(NULL != cur)
+    {
+        if(NULL == cur->l)
+        {
+            next = cur->r;
+            free(cur);
+            cur = next;
+        }
+        else
+        {
+            prev = cur->l;
+            while(NULL!=prev->r && cur!=prev->r)
+                prev = prev->r;
+            if(NULL == prev->r)
+            {
+                prev->r = cur;
+                cur = cur->l;
+            }
+            else
+            {
+            }
+
+        }
+    }
+}
+
+void cmd_uninit(void)
+{
+    struct cmd_manager *cm = &cm_obj;
+    
+    cmd_internal_uninit(cm->root);
+    cm->root = NULL;
+}
 
 u16_t cmd_list_dump(struct command *n, char *buff, u16_t len)
 {
@@ -322,6 +423,33 @@ void cmd_tree_print(void)
 }
 
 /****** static function list ******/
+static struct command **cmd_max_ppn_find(struct command **ppn)
+{
+    while(NULL != (*ppn)->r)
+        ppn = &((*ppn)->r);
+
+    return ppn;
+}
+
+struct command *cmd_new(char *name, char *spec, char *usage, command_cb_t func, void *user)
+{
+    struct command *c;
+
+    c = malloc(sizeof(struct command));
+    if(NULL != c)
+    {
+//        printf("add: name=%s, spec=%s, usage=%s, func=%p\r\n", name, spec, usage, func);
+        c->l = NULL;        /* must do */
+        c->r = NULL;
+        c->name = name;
+        c->spec = spec;
+        c->usage = usage;
+        c->func = func;
+        c->user = user;
+    }
+    
+    return c;
+}
 static u16_t cmd_dump_literate_cb(struct command *c, char *buff, u16_t len)
 {
     u16_t ret = 0;
@@ -354,9 +482,9 @@ static void cmd_tree_node_print(struct command *pn, int level)
         cmd_tree_node_value_print('\t', level, "~\r\n");
     else
     {
-        cmd_tree_node_print(pn->l, level+1);
-        cmd_tree_node_value_print('\t', level, "%s\r\n", pn->name);
         cmd_tree_node_print(pn->r, level+1);
+        cmd_tree_node_value_print('\t', level, "%s\r\n", pn->name);
+        cmd_tree_node_print(pn->l, level+1);
     }
 }
 
@@ -378,21 +506,55 @@ static struct command *cmd_node_find(struct command *pn, char *name)
     return pn;
 }
 
-static u16_t cmd_iterate(struct command *tree, char *buff, u16_t len, command_info_iterate_cb_t cb)
+#if 0
+static u16_t cmd_internal_iterate(struct command *pn, char *buff, u16_t len, command_info_iterate_cb_t cb)
 {
     u16_t ret = 0;
 
     if(NULL != tree)
     {
-        ret += cmd_iterate(tree->l, buff+ret, len-ret, cb);
+        ret += cmd_internal_iterate(tree->l, buff+ret, len-ret, cb);
         ret += cb(tree, buff+ret, len-ret);
-        ret += cmd_iterate(tree->r, buff+ret, len-ret, cb);
+        ret += cmd_internal_iterate(tree->r, buff+ret, len-ret, cb);
     }
 
     return ret;
 }
+#endif
+#if 0
+/* morris inorder traversal: */
+static u16_t cmd_internal_iterate(struct command *cur, char *buff, u16_t len, command_info_iterate_cb_t cb)
+{
+    u16_t ret = 0;
+    struct command *prev;
+    
+    while(NULL != cur)
+    {
+        if(NULL == cur->l)
+        {
+            ret += cb(cur, buff+ret, len-ret);      /* op val */
+            cur = cur->r;                           /* morris right children */
+        }
+        else
+        {
+            prev = cur->l;                          /* search previous node of current node */
+            while(NULL!=prev->r && cur!=prev->r)
+                prev = cur->r;
 
+            if(NULL == prev->r)
+                prev->r = cur, cur = cur->l;        /* link */
+            else
+            {
+                prev->r = NULL;                     /* unlink */
+                ret += cb(cur, buff+ret, len-ret);  /* op val */
+                cur = cur->r;                       /* morris right children */
+            }
+        }
+    }
 
+    return ret;
+}
+#endif
 /****** static function list ******/
 static int cmd_srv_init(u16_t port)
 {
