@@ -1,8 +1,7 @@
 #ifndef __COLOR_H__
 #define __COLOR_H__
 
-#define PLATFORM_LINUX
-#ifdef PLATFORM_LINUX
+
 #define COLOR_FONT_NONE "\033[m"
 #define COLOR_FONT_RED  "\033[31m"
 #define COLOR_FONT_GREN "\033[32m"
@@ -11,6 +10,8 @@
 #define COLOR_FONT_PURP	"\033[35m"	/* 紫色 */
 #define COLOR_FONT_CYAN	"\033[36m"	/* 青色 */
 #define COLOR_FONT_WHIT "\033[37m"	/* 白色 */
+
+
 
 #define COLOR_BACK_BLCK "\033[40m"
 #define COLOR_BACK_RED  "\033[41m"
@@ -23,28 +24,7 @@
 
 #define PRINT_ATTR_BLNK	"\033[5m"
 #define PRINT_ATTR_UBLK	"\033[25m"
-#else
-#define COLOR_FONT_NONE
-#define COLOR_FONT_RED
-#define COLOR_FONT_GREN
-#define COLOR_FONT_YELL
-#define COLOR_FONT_BLUE
-#define COLOR_FONT_PURP
-#define COLOR_FONT_CYAN
-#define COLOR_FONT_WHIT
 
-#define COLOR_BACK_BLCK
-#define COLOR_BACK_RED
-#define COLOR_BACK_GREN
-#define COLOR_BACK_YELL
-#define COLOR_BACK_BLUE
-#define COLOR_BACK_PURP
-#define COLOR_BACK_CYAN
-#define COLOR_BACK_WHIT
-
-#define PRINT_ATTR_BLNK
-#define PRINT_ATTR_UBLK
-#endif
 
 #if 0
 /*输出属性设置*/

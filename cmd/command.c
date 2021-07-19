@@ -18,7 +18,7 @@
 #define CMD_TDNAME      "shell routine"
 #define CMD_MAX_ARGC    10
 #define CMD_SRV_PORT    3000
-#define CMD_BUFF_SIZE   2048
+#define CMD_BUFF_SIZE   4096
 
 struct cmd_manager{
     struct command *root;   /* root pointer */
@@ -161,6 +161,7 @@ int cmd_replace(struct command *pn, char *name, char *spec, char *usage, command
 
     return 0;
 }
+
 /* add a command */
 int cmd_add(char *name, char *spec, char *usage, command_cb_t func, void *user)
 {
@@ -182,7 +183,7 @@ int cmd_add(char *name, char *spec, char *usage, command_cb_t func, void *user)
     return NULL!=*ppn? 0: -1;
 }
 
-int cmd_insert(char *name, char *spec, char *usage, command_cb_t func, void *user)
+int cmd_add_force(char *name, char *spec, char *usage, command_cb_t func, void *user)
 {
     struct cmd_manager *cm = &cm_obj;
     struct command **ppn;
@@ -342,48 +343,46 @@ static void cmd_internal_uninit(struct command *pn)
     }
 }
 #endif
-static void cmd_internal_uninit(struct command *cur)
+static struct command *cmd_internal_uninit(struct command *cur)
 {
-    struct command *prev;
-    struct command *next;
+    struct command *pn;
 
     while(NULL != cur)
     {
         if(NULL == cur->l)
         {
-            next = cur->r;
+            pn = cur->r;
+            printf("free: %s\r\n", cur->name);
             free(cur);
-            cur = next;
+            cur = pn;
         }
         else
         {
-            prev = cur->l;
-            while(NULL!=prev->r && cur!=prev->r)
-                prev = prev->r;
-            if(NULL == prev->r)
-            {
-                prev->r = cur;
-                cur = cur->l;
-            }
-            else
-            {
-            }
+            pn = cur->l;
+            while(NULL != pn->r)
+                pn = pn->r;
 
+            pn->r = cur;
+            pn = cur->l;    /* save left child */
+            cur->l = NULL;  /* set NULL of current node 's left child */
+            cur = pn;       /* restore left child */
         }
     }
+
+    return cur;
 }
 
 void cmd_uninit(void)
 {
     struct cmd_manager *cm = &cm_obj;
     
-    cmd_internal_uninit(cm->root);
-    cm->root = NULL;
+    cm->root = cmd_internal_uninit(cm->root);
 }
 
 u16_t cmd_list_dump(struct command *n, char *buff, u16_t len)
 {
     u16_t ret = 0; 
+
     if(NULL != n)
     {
         ret += cmd_list_dump(n->l, buff+ret, len-ret);

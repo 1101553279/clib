@@ -44,7 +44,7 @@ struct command *cmd_new(char *name, char *spec, char *usage, command_cb_t func, 
 int cmd_copy(struct command *dst, struct command *src);
 int cmd_replace(struct command *pn, char *name, char *spec, char *usage, command_cb_t func, void *user);
 int cmd_add(char *name, char *spec, char *usage, command_cb_t func, void *user);
-int cmd_insert(char *name, char *spec, char *usage, command_cb_t func, void *user);
+int cmd_add_force(char *name, char *spec, char *usage, command_cb_t func, void *user);
 int cmd_del(char *name);
 int cmd_size(void);
 /* eg: for help command */

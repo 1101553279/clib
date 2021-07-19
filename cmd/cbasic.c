@@ -4,6 +4,7 @@
 #include "command.h"
 #include "blist.h"
 #include "plog.h"
+#include "sock.h"
 
 static int test_command(int argc, char *argv[], char *buff, int len, void *user);
 static int test_command_replace(int argc, char *argv[], char *buff, int len, void *user);
@@ -15,16 +16,12 @@ void cbasic_init(void)
 {
 #if 1
     cmd_add("help", "list all commands information", CMD_INDENT"help [cmd|plog|help]\n", help_command, NULL);
-    printf("add help: cmdsize = %d\r\n", cmd_size());
-    cmd_add("test", "test command function", CMD_INDENT"test\n", test_command, NULL);
-    printf("add test: cmdsize = %d\r\n", cmd_size());
     cmd_add("test", "test command function", CMD_INDENT"test\n", test_command, NULL);
     cmd_add("dump", "dump module information", CMD_INDENT"dump [cmd|plog]\n", dump_command, NULL);
-    printf("add test: cmdsize = %d\r\n", cmd_size());
 #endif
     cmd_tree_print();   /* for debug */
-    cmd_insert("test", "test command function", CMD_INDENT"test\n", test_command_replace, NULL);
-#if 1
+    cmd_add_force("test", "test command function", CMD_INDENT"test\n", test_command_replace, NULL);
+#if 0
     cmd_tree_print();   /* for debug */
     cmd_del("test");
     cmd_tree_print();
@@ -106,6 +103,16 @@ static int dump_command(int argc, char *argv[], char *buff, int len, void *user)
             ret += cmd_dump(buff+ret, len-ret);
         else
             ret += snprintf(buff+ret, len-ret, "%s %s <- no this module\n", argv[0], argv[1]);
+    }
+    else if(3 == argc)
+    {
+        if(0 == strcmp(argv[1], "sock"))
+        {
+            if(0 == strcmp(argv[2], "tcps"))
+                ret += sock_tcps_dump(buff+ret, len-ret);
+        }
+        else
+            ret += snprintf(buff+ret, len-ret, "%s %s %s <- no this module\n", argv[0], argv[1], argv[2]);
     }
     else
         ret += snprintf(buff+ret, len-ret, "parameter error!\n");

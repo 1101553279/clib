@@ -4,6 +4,7 @@
 #include "util.h"
 #include "command.h"
 #include "log.h"
+#include "sock.h"
 
 
 
@@ -15,14 +16,15 @@ int main(int argc, char *argv[])
     /* init plog module */
     plog_init();
 
-    cmd_tree_print();   /* for debug */
+    /* init sock module */
+    sock_init();
+//    cmd_tree_print();   /* for debug */
 
     while(1)
     {
         sleep(1);
 //        printf("main run!\r\n");
         plog(RUN, "main run!\n");
-        log_whi("main run\n");
     }
 
 
