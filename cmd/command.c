@@ -651,6 +651,7 @@ static int cmd_do_hand(char *buff, struct sockaddr_in *cip, socklen_t clen)
         return -1;
 
     /* command parse */
+    plog(CMD, "recv command: %s\r\n", buff);
     argc = str_parse(buff, argv, ARY_SIZE(argv));
     if(argc <= 0)
     {

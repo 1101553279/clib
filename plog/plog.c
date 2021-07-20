@@ -6,6 +6,9 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include "command.h"
+#include "plog.h"
+#include "tick.h"
+#include <time.h>
 
 #define PBUF_SIZE    1024
 
@@ -18,7 +21,7 @@ struct con{
 struct plog{
     u32_t key;              /* debug key, each bit indicate a mod */
     struct con con;         /* for send msg */
-    char buff[PBUF_SIZE];    /* for format log */
+    char buff[PBUF_SIZE];   /* for format log */
 };
 
 static struct plog plog_obj;
@@ -31,6 +34,15 @@ static void plog_con_on(int ufd, struct sockaddr_in *addr, socklen_t len);
 static void plog_con_off(void);
 
 
+void plog_tick(void *data)
+{
+    time_t t;
+
+    time(&t);
+
+    printf("plog tick: %s\r\n", ctime(&t));
+}
+
 /* init plog module */
 void plog_init(void)
 {
@@ -41,6 +53,9 @@ void plog_init(void)
     memset(p->buff, 0, sizeof(p->buff));
     /* add plog command */
     cmd_add("plog", "plog execution procedure", CMD_INDENT"plog [run/cmd] on/off\n", plog_command, NULL);
+    
+    tick_add("plog", plog_tick, p, 1000);
+    
 
     return;
 }

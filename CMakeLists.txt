@@ -12,13 +12,15 @@ include_directories(plog)
 include_directories(util)
 include_directories(cmd)
 include_directories(sock)
+include_directories(tick)
 
 #cmake directories
 add_subdirectory(plog)
 add_subdirectory(util)
 add_subdirectory(cmd)
 add_subdirectory(sock)
+add_subdirectory(tick)
 
 #link libraries
-target_link_libraries(plc plog util cmd sock)
+target_link_libraries(plc plog util cmd sock tick)
 

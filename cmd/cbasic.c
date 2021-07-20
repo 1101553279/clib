@@ -19,9 +19,9 @@ void cbasic_init(void)
     cmd_add("test", "test command function", CMD_INDENT"test\n", test_command, NULL);
     cmd_add("dump", "dump module information", CMD_INDENT"dump [cmd|plog]\n", dump_command, NULL);
 #endif
+#if 0
     cmd_tree_print();   /* for debug */
     cmd_add_force("test", "test command function", CMD_INDENT"test\n", test_command_replace, NULL);
-#if 0
     cmd_tree_print();   /* for debug */
     cmd_del("test");
     cmd_tree_print();

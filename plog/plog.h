@@ -4,9 +4,10 @@
 #include "btype.h"
 
 /* key list */
-#define PLOG_KEY (0x1)
-#define PLOG_RUN (0x1<<1)
-#define PLOG_CMD (0x2<<1)
+#define PLOG_KEY    (0x1)
+#define PLOG_RUN    (0x1<<1)
+#define PLOG_CMD    (0x2<<1)
+#define PLOG_TICK   (0x3<<1)
 
 #define plog(mod, fmt, args...)\
     do{\

@@ -5,6 +5,7 @@
 #include "command.h"
 #include "log.h"
 #include "sock.h"
+#include "tick.h"
 
 
 
@@ -18,7 +19,11 @@ int main(int argc, char *argv[])
 
     /* init sock module */
     sock_init();
-//    cmd_tree_print();   /* for debug */
+
+    /* init tick module */
+    tick_init();
+
+    cmd_tree_print();   /* for debug */
 
     while(1)
     {
