@@ -91,7 +91,7 @@ int tick_add(char *name, tknode_cb_t cb, void *udata, u16_t div)
 
     if(NULL == cb)
     {
-        plog(TICK, "tick add fail: 0==cb\r\n");
+        log_red("tick add fail: 0==cb\r\n");
         return -1;
     }
     /* check repeated tick node add */
@@ -100,7 +100,7 @@ int tick_add(char *name, tknode_cb_t cb, void *udata, u16_t div)
         node = list_entry(pos, struct tknode, node);
         if(NULL!=name && 0==strcmp(name, node->name))
         {
-            plog(TICK, "repeated add: tick has been added!\r\n");
+            log_red("repeated add: tick has been added!\r\n");
             return -1;
         }
     }
@@ -109,7 +109,7 @@ int tick_add(char *name, tknode_cb_t cb, void *udata, u16_t div)
     node = malloc(sizeof(struct tknode));
     if(NULL == node)
     {
-        plog(TICK, "memory malloc fail!\r\n");
+        log_red("memory malloc fail!\r\n");
         return -1;
     }
     node->ptimes = tk->ctimes;
@@ -150,7 +150,7 @@ static u16_t tknode_dump(struct tknode *node, char *buff, u16_t len)
 {
     u16_t ret = 0;
     
-    ret += snprintf(buff+ret, len-ret, "  %-6s: %u %p %p %u\r\n", 
+    ret += snprintf(buff+ret, len-ret, "| %-15s | %-10u | %-15p | %-15p | %-15u |\r\n", 
             node->name, node->ptimes, node->cb, node->udata, node->div);
 
     return ret;
@@ -164,7 +164,7 @@ static u16_t tick_list(struct tick *tk, char *buff, u16_t len)
     struct tknode *node = NULL;
     struct list_head *pos = NULL;
 
-    ret += snprintf(buff+ret, len-ret, "tknode list:\r\n");
+    ret += snprintf(buff+ret, len-ret, "****** tknode list summary ******\r\n");
     ret += snprintf(buff+ret, len-ret, TICK_SPLIT);
     ret += snprintf(buff+ret, len-ret, "| %-15s | %-10s | %-15s | %-15s | %-15s |\r\n", 
                                        "name", "ptimes", "cb", "udata", "div(ms)");
@@ -221,6 +221,7 @@ static void *task_cb(void *data)
         list_for_each(pos, &tk->head)
         {
             node = list_entry(pos, struct tknode, node);
+            plog(TICK, "do task: %s\r\n", node->name);
             tknode_do(node, tk->ctimes);
         }
         

@@ -14,14 +14,15 @@ int main(int argc, char *argv[])
     /* must call first: init command module, because plog_init() function use it */
     cmd_init();
 
+    /* init tick module */
+    tick_init();
+
     /* init plog module */
     plog_init();
 
     /* init sock module */
     sock_init();
 
-    /* init tick module */
-    tick_init();
 
     cmd_tree_print();   /* for debug */
 

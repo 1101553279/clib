@@ -4,6 +4,7 @@
 #include "command.h"
 #include "blist.h"
 #include "plog.h"
+#include "tick.h"
 #include "sock.h"
 
 static int test_command(int argc, char *argv[], char *buff, int len, void *user);
@@ -101,6 +102,8 @@ static int dump_command(int argc, char *argv[], char *buff, int len, void *user)
             ret += plog_dump(buff+ret, len-ret);
         else if(0 == strcmp(argv[1], "cmd"))
             ret += cmd_dump(buff+ret, len-ret);
+        else if(0 == strcmp(argv[1], "tick"))
+            ret += tick_dump(buff+ret, len-ret);
         else
             ret += snprintf(buff+ret, len-ret, "%s %s <- no this module\n", argv[0], argv[1]);
     }
