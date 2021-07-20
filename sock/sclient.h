@@ -32,6 +32,7 @@ int sclient_close(struct sclient *pn);
 struct sclient *sclient_find(struct sclient *pn, int fd);
 void sclient_swap(struct sclient *d, struct sclient *s);
 void sclient_iterate(struct sclient *cur, sclient_iterate_t cb, void *data);
+void sclient_level_iterate(struct sclient *cur, sclient_iterate_t cb, void *data);
 int sclient_size(struct sclient *cur);
 int sclient_hand(struct sclient **ppn, struct pollfd *fds);
 struct sclient *sclient_uninit(struct sclient *cur);
@@ -41,6 +42,7 @@ void sclient_del_print(struct sclient *c);
 void sclient_line_print(struct sclient *c);
 void sclient_print(struct sclient *c);
 u16_t sclient_list(struct sclient *c, char *buff, int len);
+u16_t sclient_level_list(struct sclient *c, char *buff, int len);
 u16_t sclient_line_dump(struct sclient *c, char *buff, u16_t len);
 void sclient_dump_cb(struct sclient *c, void *data);
 #endif

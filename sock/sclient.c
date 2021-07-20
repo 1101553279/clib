@@ -168,6 +168,32 @@ void sclient_iterate(struct sclient *cur, sclient_iterate_t cb, void *data)
 
     return;
 }
+void sclient_level_iterate(struct sclient *cur, sclient_iterate_t cb, void *data)
+{
+    struct sclient **que = NULL;
+    int front = 0;
+    int rear = 0;
+
+    if(NULL==cur || NULL==(que = malloc(sizeof(struct client *) * sclient_size(cur))))
+        return;
+    
+    while(rear!=front || NULL!=cur)
+    {
+        if(NULL != cur)
+        {
+            cb(cur, data);
+            if(NULL != cur->l)
+                que[front++] = cur->l;
+            if(NULL != cur->r)
+                que[front++] = cur->r;
+            cur = NULL;
+        }
+        else
+            cur = que[rear++];
+    }
+    
+    return;
+}
 
 int sclient_size(struct sclient *cur)
 {
@@ -268,6 +294,22 @@ u16_t sclient_list(struct sclient *c, char *buff, int len)
     ret += data.n;
 
     return ret;
+}
+
+u16_t sclient_level_list(struct sclient *c, char *buff, int len)
+{
+    u16_t ret = 0;
+
+    ret += snprintf(buff+ret, len-ret, "****** tcps client level list summary ******\r\n");
+
+    struct sclient_dump_cb_t data = {buff+ret, len-ret, 0};
+
+    sclient_level_iterate(c, sclient_dump_cb, &data);
+
+    ret += data.n;
+
+    return ret;
+
 }
 u16_t sclient_line_dump(struct sclient *c, char *buff, u16_t len)
 {

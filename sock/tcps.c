@@ -155,6 +155,8 @@ static int tcps_command(int argc, char *argv[], char *buff, int len, void *user)
 {
     u16_t ret = 0;
     struct sock_tcps *tcp = (struct sock_tcps *)user;
+    u8_t mark = 1;
+    int i = 0;
 
     if(2 == argc) 
     {
@@ -163,28 +165,42 @@ static int tcps_command(int argc, char *argv[], char *buff, int len, void *user)
         else if(0 == strcmp(argv[1], "port"))
             ret += snprintf(buff+ret, len-ret, "tcps srv port: %u\r\n", tcp->port);
         else
-            ret += snprintf(buff+ret, len-ret, "tcps %s <- no this cmd\r\n", argv[1]);
+            mark = 0;
     }
     else if(3 == argc)
     {
         if(0 == strcmp(argv[1], "client"))
         {
             if(0 == strcmp(argv[2], "list"))
-            {
                 ret += sclient_list(tcp->root, buff+ret, len-ret);
-            }
             else if(0 == strcmp(argv[2], "uninit"))
             {
                 tcp->root = sclient_uninit(tcp->root);
                 ret += snprintf(buff+ret, len-ret, "****** tcps client uninit ******\r\n");
                 ret += snprintf(buff+ret, len-ret, "all clients are uninited\r\n");
             }
+            else
+                mark = 0;
         }
         else
-            ret += snprintf(buff+ret, len-ret, "tcps %s %s <- no this cmd\r\n", argv[1], argv[2]);
+            mark = 0;
+    }
+    else if(4 == argc)
+    {
+        if(0 == strcmp(argv[1], "client") && 0 == strcmp(argv[2], "level") && 0 == strcmp(argv[3], "list"))
+            ret += sclient_level_list(tcp->root, buff+ret, len-ret);
+        else
+            mark = 0;
     }
     else
-        ret += snprintf(buff+ret, len-ret, "tcps %s <- no this cmd\r\n", argv[1]);
+        mark = 0;
+
+    if(0 == mark)
+    {
+        for(i=0; i < argc; i++)
+            ret += snprintf(buff+ret, len-ret, "%s ", argv[i]);
+        ret += snprintf(buff+ret, len-ret, " <- no this cmd\r\n");
+    }
 
     return ret;
 }
