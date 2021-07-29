@@ -57,6 +57,7 @@ static void cmd_tree_node_print(struct command *pn, int level);
 static void cmd_tree_node_value_print(char ch, int level, char *fmt, ...);
 static u16_t cmd_dump_literate_cb(struct command *c, char *buff, u16_t len);
 static int cmd_exe(struct command *cmd, int argc, char *argv[], struct sockaddr_in *cip, socklen_t clen);
+static int cmd_command(int argc, char *argv[], char *buff, int len, void *user);
 /* init command module */
 void cmd_init(void)
 {
@@ -82,6 +83,8 @@ void cmd_init(void)
     
     /* basic command add */
     cbasic_init();
+    
+    cmd_add("cmd", "list all commands", CMD_INDENT"cmd list", cmd_command, NULL);
     
     return;
 
@@ -390,6 +393,24 @@ u16_t cmd_list_dump(struct command *n, char *buff, u16_t len)
         ret += cmd_list_dump(n->r, buff+ret, len-ret);
     }
 
+    return ret;
+}
+
+static u16_t cmd_command_iterate_cb(struct command *c, char *buff, u16_t len)
+{
+    u16_t ret = 0; 
+    
+    ret += snprintf(buff+ret, len-ret, "%-4s %-50s %-s\r\n", c->name, c->usage, c->spec);
+
+    return ret;
+}
+
+static int cmd_command(int argc, char *argv[], char *buff, int len, void *user)
+{
+    int ret = 0;
+    
+    ret += cmd_info_iterate(buff-ret, len-ret, cmd_command_iterate_cb, NULL);
+    
     return ret;
 }
 

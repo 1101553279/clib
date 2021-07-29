@@ -28,7 +28,7 @@ int tcps_init(struct sock_tcps *t, u16_t port)
     time(&c);
     strftime(t->itime, sizeof(t->itime), "%H:%M:%S", localtime(&c));
 
-    cmd_add("tcps", "list tcps information", CMD_INDENT"tcps [fd|port|client <list|close>]\r\n", tcps_command, t);
+    cmd_add("tcps", "list tcps information", CMD_INDENT"tcps [fd|port|client <list|close>]", tcps_command, t);
 
     return 0;
 }

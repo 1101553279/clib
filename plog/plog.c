@@ -52,7 +52,7 @@ void plog_init(void)
     con_init(&p->con);
     memset(p->buff, 0, sizeof(p->buff));
     /* add plog command */
-    cmd_add("plog", "plog execution procedure", CMD_INDENT"plog [run/cmd] on/off\n", plog_command, NULL);
+    cmd_add("plog", "plog execution procedure", CMD_INDENT"plog [run/cmd] on/off", plog_command, NULL);
     
     tick_add("plog", plog_tick, p, 1000);
     

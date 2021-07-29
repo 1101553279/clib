@@ -24,7 +24,7 @@ int main(int argc, char *argv[])
     sock_init();
 
 
-    cmd_tree_print();   /* for debug */
+//    cmd_tree_print();   /* for debug */
 
     while(1)
     {

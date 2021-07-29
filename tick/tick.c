@@ -79,7 +79,7 @@ void tick_init(void)
     }
     
     log_grn("tick init success!\r\n");
-    cmd_add("tick", "manage tick module", CMD_INDENT"tick [list|dump]\n", tick_command, tk);
+    cmd_add("tick", "manage tick module", CMD_INDENT"tick [list|dump]", tick_command, tk);
 
     return;
 }

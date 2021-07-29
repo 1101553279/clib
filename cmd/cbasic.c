@@ -16,9 +16,9 @@ static int dump_command(int argc, char *argv[], char *buff, int len, void *user)
 void cbasic_init(void)
 {
 #if 1
-    cmd_add("help", "list all commands information", CMD_INDENT"help [cmd|plog|help]\n", help_command, NULL);
-    cmd_add("test", "test command function", CMD_INDENT"test\n", test_command, NULL);
-    cmd_add("dump", "dump module information", CMD_INDENT"dump [cmd|plog]\n", dump_command, NULL);
+    cmd_add("help", "list all commands information", CMD_INDENT"help [cmd|plog|help]", help_command, NULL);
+//    cmd_add("test", "test command function", CMD_INDENT"test", test_command, NULL);
+    cmd_add("dump", "dump module information", CMD_INDENT"dump [cmd|plog]", dump_command, NULL);
 #endif
 #if 0
     cmd_tree_print();   /* for debug */
@@ -81,9 +81,9 @@ static int help_command(int argc, char *argv[], char *buff, int len, void *user)
         {
             c = cmd_find(argv[1]);
             if(c)
-                ret += snprintf(buff+ret, len-ret, "%-s\n%s", "usage:", CMD_USAGE(c));
+                ret += snprintf(buff+ret, len-ret, "%-s\r\n%s\r\n", "usage:", CMD_USAGE(c));
             else
-                ret += snprintf(buff+ret, len-ret, "command '%s' not found\n", argv[1]);
+                ret += snprintf(buff+ret, len-ret, "command '%s' not found\r\n", argv[1]);
         }
     }
 
