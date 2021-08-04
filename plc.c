@@ -7,8 +7,6 @@
 #include "sock.h"
 #include "tick.h"
 
-
-
 int main(int argc, char *argv[])
 {
     /* must call first: init command module, because plog_init() function use it */
@@ -23,13 +21,9 @@ int main(int argc, char *argv[])
     /* init sock module */
     sock_init();
 
-
-//    cmd_tree_print();   /* for debug */
-
     while(1)
     {
         sleep(1);
-//        printf("main run!\r\n");
         plog(RUN, "main run!\n");
     }
 
