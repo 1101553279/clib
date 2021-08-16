@@ -15,7 +15,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#define CMD_TDNAME      "shell routine"
+#define CMD_TDNAME      "cmd_routine"
 #define CMD_MAX_ARGC    10
 #define CMD_SRV_PORT    3000
 #define CMD_BUFF_SIZE   4096

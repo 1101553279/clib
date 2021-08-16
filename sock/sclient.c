@@ -3,7 +3,9 @@
 #include <stdlib.h>
 #include <time.h>
 #include <string.h>
+#include <stdarg.h>
 
+void sclient_line_node_print(struct sclient *c);
 static void sclient_size_cb(struct sclient *cur, void *data);
 struct sclient *sclient_new(int fd, struct sockaddr_in *caddr)
 {
@@ -260,23 +262,23 @@ void sclient_msg_print(struct sclient *c, u8_t *msg, size_t len)
 void sclient_del_print(struct sclient *c)
 {
     SOCK_INFO("del client: ");
-    sclient_line_print(c);
+    sclient_line_node_print(c);
 }
 
-void sclient_line_print(struct sclient *c)
+void sclient_line_node_print(struct sclient *c)
 {
     SOCK_PRINT("| %-15p | %-15p | %-15p | %-5d | %-15s | %-5u | %-10s |\r\n", 
             c->l, c, c->r, c->fd, c->ip, c->port, c->ltime);
 }
 
-void sclient_print(struct sclient *c)
+void sclient_list_print(struct sclient *c)
 {
     if(NULL != c)
     {
-        sclient_print(c->l);
+        sclient_list_print(c->l);
         SOCK_PRINT( SOCK_SPLIT );
-        sclient_line_print(c);
-        sclient_print(c->r);
+        sclient_line_node_print(c);
+        sclient_list_print(c->r);
     }
     return;
 }
@@ -334,6 +336,41 @@ void sclient_dump_cb(struct sclient *c, void *data)
 static void sclient_size_cb(struct sclient *cur, void *data)
 {
     (*(int *)data)++;
+    return;
+}
+
+void sclient_tree_node_print(struct sclient *n, int level, const char *fmt, ...)
+{
+    va_list ap;
+    int i = 0;
+
+    for(i=0; i < level; i++)
+        putchar('\t');
+
+    va_start(ap, fmt);
+    vprintf(fmt, ap);
+    va_end(ap);
+
+    return;
+}
+
+void sclient_tree_node_recursive(struct sclient *n, int level)
+{
+    if(NULL == n)
+        sclient_tree_node_print(n, level, "%c\r\n", '~');
+    else
+    {
+        sclient_tree_node_recursive(n->r, level+1);
+        sclient_tree_node_print(n, level, "%d\r\n", n->fd);
+        sclient_tree_node_recursive(n->l, level+1);
+    }
+
+    return;
+}
+
+void sclient_tree_print(struct sclient *c)
+{
+    sclient_tree_node_recursive(c, 1);
     return;
 }
 

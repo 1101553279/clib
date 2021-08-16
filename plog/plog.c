@@ -54,7 +54,7 @@ void plog_init(void)
     /* add plog command */
     cmd_add("plog", "plog execution procedure", CMD_INDENT"plog [run/cmd] on/off", plog_command, NULL);
     
-    tick_add("plog", plog_tick, p, 1000);
+    tick_add("plog", plog_tick, p, 10000);
     
 
     return;

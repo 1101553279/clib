@@ -111,11 +111,15 @@ void tcps_print(struct sock_tcps *t)
     SOCK_PRINT("srv port  : %u\r\n", t->port);
     SOCK_PRINT("srv online: %s\r\n", t->itime);
     SOCK_PRINT("srv root  : %p\r\n", t->root);
+    SOCK_PRINT("\tlist print:\r\n");
     SOCK_PRINT( SOCK_SPLIT );
     SOCK_PRINT("| %-15s | %-15s | %-15s | %-5s | %-15s | %-5s | %-10s | \r\n", 
                 "left", "current", "right", "fd", "ip", "port", "link time");
-    sclient_print(t->root); 
+    sclient_list_print(t->root); 
     SOCK_PRINT( SOCK_SPLIT );
+
+    SOCK_PRINT("\ttree print:\r\n");
+    sclient_tree_print(t->root);
 
     return;
 }
