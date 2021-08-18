@@ -23,6 +23,7 @@ struct sclient_dump_cb_t
 typedef void (*sclient_iterate_t)(struct sclient *c, void *data);
 
 struct sclient *sclient_new(int fd, struct sockaddr_in *caddr);
+struct sclient *sclient_prev_pn_find(struct sclient *cur);
 struct sclient **sclient_prev_ppn_find(struct sclient *cur);
 struct sclient **sclient_ppn_find(struct sclient **ppn, int fd);
 struct sclient **sclient_max_ppn_find(struct sclient *cur);

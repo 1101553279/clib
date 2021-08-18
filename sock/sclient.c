@@ -25,6 +25,15 @@ struct sclient *sclient_new(int fd, struct sockaddr_in *caddr)
     
     return c;
 }
+struct sclient *sclient_prev_pn_find(struct sclient *cur)
+{
+    struct sclient *pn = cur->l;
+
+    while(NULL!=pn->r && cur!=pn->r)
+        pn = pn->r;
+    
+    return pn;
+}
 struct sclient **sclient_prev_ppn_find(struct sclient *cur)
 {
     struct sclient **ppn = &(cur->l);
@@ -142,7 +151,7 @@ void sclient_swap(struct sclient *d, struct sclient *s)
 }
 void sclient_iterate(struct sclient *cur, sclient_iterate_t cb, void *data)
 {
-    struct sclient **ppn = NULL;
+    struct sclient *pn = NULL;
 
     while(NULL != cur) 
     {
@@ -153,15 +162,15 @@ void sclient_iterate(struct sclient *cur, sclient_iterate_t cb, void *data)
         }
         else
         {
-            ppn = sclient_prev_ppn_find(cur);
-            if(NULL == (*ppn)->r)
+            pn = sclient_prev_pn_find(cur);
+            if(NULL == pn->r)
             {
-                (*ppn)->r = cur;
+                pn->r = cur;
                 cur = cur->l;
             }
             else
             {
-                (*ppn)->r = NULL;
+                pn->r = NULL;
                 cb(cur, data);
                 cur = cur->r;
             }
