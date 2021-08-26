@@ -40,7 +40,7 @@ void plog_tick(void *data)
 
     time(&t);
 
-    printf("plog tick: %s\r\n", ctime(&t));
+    printf("plog tick: %s", ctime(&t));
 }
 
 /* init plog module */

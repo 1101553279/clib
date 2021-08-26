@@ -6,7 +6,7 @@
 #include <poll.h>
 
 struct sock_tcps{
-    struct sclient *root;       /* client's tree root */
+    struct sclient_mgr cm;      /* client manager */
     int fd;                     /* server fd */
     u16_t port;                 /* server port */
     char itime[SOCK_IP_LEN];    /* init time */

@@ -19,7 +19,7 @@ int tcps_init(struct sock_tcps *t, u16_t port)
 {
     time_t c;
 
-    t->root = NULL;
+    sclient_init(&t->cm);
     t->fd = sock_fd_init(SOCK_TCP, port);
     if(-1 == t->fd)
         return -1;
@@ -36,7 +36,7 @@ int tcps_init(struct sock_tcps *t, u16_t port)
 nfds_t tcps_fds_size(struct sock_tcps *t)
 {
     /* server + clients */
-    return 1 + sclient_size(t->root);
+    return 1 + sclient_size(&t->cm);
 }
 
 nfds_t tcps_fds(struct sock_tcps *t, struct pollfd *fds, nfds_t size)
@@ -57,7 +57,7 @@ nfds_t tcps_fds(struct sock_tcps *t, struct pollfd *fds, nfds_t size)
 
 int tcps_fds_in(struct sock_tcps *t, int fd)
 {
-    return fd==t->fd || NULL!=sclient_find(t->root, fd);
+    return fd==t->fd || NULL!=sclient_find(&t->cm, fd);
 }
 
 int tcps_fds_hand(struct sock_tcps *t, struct pollfd *fds)
@@ -73,14 +73,14 @@ int tcps_fds_hand(struct sock_tcps *t, struct pollfd *fds)
         if(fds->fd == t->fd) /* server event */
         {
             cfd = accept(t->fd, (struct sockaddr *)&caddr, &clen);
-            sclient_add(&t->root, cfd, &caddr);
+            sclient_add(&t->cm, cfd, &caddr);
             nfds++;
             /* for debug */
             tcps_print(t);
         }
         else
         {
-            sclient_hand(&t->root, fds);
+            sclient_hand(&t->cm, fds);
             nfds++;
             tcps_print(t);
         }
@@ -91,14 +91,14 @@ int tcps_fds_hand(struct sock_tcps *t, struct pollfd *fds)
 
 void tcps_iterate(struct sock_tcps *t, tcps_iterate_t cb, void *data)
 {
-    sclient_iterate(t->root, cb, data);
+    sclient_iterate(&t->cm, cb, data);
 
     return;
 }
 
 void tcps_uninit(struct sock_tcps *t)
 {
-    t->root = sclient_uninit(t->root);
+    sclient_uninit(&t->cm);
     close(t->fd);
 
     return;
@@ -110,16 +110,15 @@ void tcps_print(struct sock_tcps *t)
     SOCK_PRINT("srv fd    : %d\r\n", t->fd); 
     SOCK_PRINT("srv port  : %u\r\n", t->port);
     SOCK_PRINT("srv online: %s\r\n", t->itime);
-    SOCK_PRINT("srv root  : %p\r\n", t->root);
     SOCK_PRINT("\tlist print:\r\n");
     SOCK_PRINT( SOCK_SPLIT );
     SOCK_PRINT("| %-15s | %-15s | %-15s | %-5s | %-15s | %-5s | %-10s | \r\n", 
                 "left", "current", "right", "fd", "ip", "port", "link time");
-    sclient_list_print(t->root); 
+    sclient_list_print(&t->cm); 
     SOCK_PRINT( SOCK_SPLIT );
 
     SOCK_PRINT("\ttree print:\r\n");
-    sclient_tree_print(t->root);
+    sclient_tree_print(&t->cm);
 
     return;
 }
@@ -132,13 +131,12 @@ u16_t tcps_dump(struct sock_tcps *t, char *buff, u16_t len)
     ret += snprintf(buff+ret, len-ret, "srv fd    : %d\r\n", t->fd); 
     ret += snprintf(buff+ret, len-ret, "srv port  : %u\r\n", t->port);
     ret += snprintf(buff+ret, len-ret, "srv online: %s\r\n", t->itime);
-    ret += snprintf(buff+ret, len-ret, "srv root  : %p\r\n", t->root);
     ret += snprintf(buff+ret, len-ret, SOCK_SPLIT);
     ret += snprintf(buff+ret, len-ret, "| %-15s | %-15s | %-15s | %-5s | %-15s | %-5s | %-10s |\r\n", 
                                        "left", "current", "right", "fd", "ip", "port", "link time");
 
     struct sclient_dump_cb_t data = {buff+ret, len-ret, 0};
-    sclient_iterate(t->root, sclient_dump_cb, &data);
+    sclient_iterate(&t->cm, sclient_dump_cb, &data);
     ret += data.n;
     ret += snprintf(buff+ret, len-ret, SOCK_SPLIT);
 
@@ -176,10 +174,10 @@ static int tcps_command(int argc, char *argv[], char *buff, int len, void *user)
         if(0 == strcmp(argv[1], "client"))
         {
             if(0 == strcmp(argv[2], "list"))
-                ret += sclient_list(tcp->root, buff+ret, len-ret);
+                ret += sclient_list(&tcp->cm, buff+ret, len-ret);
             else if(0 == strcmp(argv[2], "uninit"))
             {
-                tcp->root = sclient_uninit(tcp->root);
+                sclient_uninit(&tcp->cm);
                 ret += snprintf(buff+ret, len-ret, "****** tcps client uninit ******\r\n");
                 ret += snprintf(buff+ret, len-ret, "all clients are uninited\r\n");
             }
@@ -192,7 +190,7 @@ static int tcps_command(int argc, char *argv[], char *buff, int len, void *user)
     else if(4 == argc)
     {
         if(0 == strcmp(argv[1], "client") && 0 == strcmp(argv[2], "level") && 0 == strcmp(argv[3], "list"))
-            ret += sclient_level_list(tcp->root, buff+ret, len-ret);
+            ret += sclient_level_list(&tcp->cm, buff+ret, len-ret);
         else
             mark = 0;
     }

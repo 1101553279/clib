@@ -22,7 +22,7 @@
 #define SOCK_ERR(fmt, args...)      do{ logc(COLOR_FONT_RED, fmt, ##args); } while(0) 
 #define SOCK_OK(fmt, args...)       do{ logc(COLOR_FONT_GREN, fmt, ##args); }while(0)
 #define SOCK_INFO(fmt, args...)     do{ logc(COLOR_FONT_YELL, fmt, ##args); }while(0)
-#define SOCK_TITLE(fmt, args...)    do{ logc(COLOR_FONT_YELL, fmt, ##args);}while(0)
+#define SOCK_TITLE(fmt, args...)    do{ logc(COLOR_FONT_YELL, fmt, ##args); }while(0)
 #define SOCK_PRINT(fmt, args...)    do{ log(fmt, ##args); }while(0)
 
 #define SOCK_SPLIT                  "--------------------------------------------------"\

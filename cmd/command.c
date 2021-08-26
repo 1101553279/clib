@@ -281,7 +281,6 @@ int cmd_internal_info_cb(struct command *c, void *user)
 u16_t cmd_info_iterate(char *buff, u16_t len, command_info_iterate_cb_t cb, char *title)
 {
     u16_t ret = 0;
-    struct cmd_manager *cm = &cm_obj;
     struct cmd_internal_info info = {buff, len, cb};
     
     if(NULL==buff || 0==len || NULL==cb)
@@ -300,8 +299,7 @@ u16_t cmd_info_iterate(char *buff, u16_t len, command_info_iterate_cb_t cb, char
 }
 void cmd_iterate(command_iterate_cb_t cb, void *user)
 {
-    struct cmd_manager *cm = &cm_obj;
-    struct command *cur = cm->root;
+    struct command *cur = cm_obj.root;
     struct command *prev;
 
     while(NULL != cur)
