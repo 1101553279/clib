@@ -1,5 +1,6 @@
 #include "plog.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
 #include <sys/socket.h>
@@ -9,30 +10,48 @@
 #include "plog.h"
 #include "tick.h"
 #include <time.h>
+#include "pthread.h"
 
-#define PBUF_SIZE    1024
+#define PBUF_SIZE   1024
+#define PMSG_SIZE   20
 
-struct con{
-    int ufd;        /* udp file description */
-    struct sockaddr_in caddr;/* client address */
-    socklen_t clen; /* client address length*/
+struct plog_con{
+    int ufd;                    /* udp file description */
+    struct sockaddr_in caddr;   /* client address */
+    socklen_t clen;             /* client address length*/
+};
+
+struct plog_que{
+    char *pmsg[PMSG_SIZE];
+    int front;                  /* queue's front */
+    int rear;                   /* queue's rear */
+    pthread_mutex_t lock;
+    pthread_cond_t in;          /* put a message */
+    pthread_cond_t out;         /* get a message */
 };
 
 struct plog{
-    u32_t key;              /* debug key, each bit indicate a mod */
-    struct con con;         /* for send msg */
-    char buff[PBUF_SIZE];   /* for format log */
+    pthread_t tid;
+    u32_t key;                  /* debug key, each bit indicate a mod */
+    struct plog_con con;        /* connection for send msg */
+    struct plog_que que;        /* queue for caching message */
 };
 
 static struct plog plog_obj;
-static void con_init(struct con *c);
-static void con_send(struct con *c, char *buff, u16_t len);
+/* plog's command */
 static int plog_command(int argc, char *argv[], char *buff, int len, void *user);
+
 static void plog_key_on(u32_t mods);
 static void plog_key_off(u32_t mods);
+/* plog's connection */
+static void plog_con_init(struct plog_con *c);
+static void plog_con_send(struct plog_con *c, char *buff);
 static void plog_con_on(int ufd, struct sockaddr_in *addr, socklen_t len);
 static void plog_con_off(void);
-
+/* plog's message queue */
+static void plog_que_init(struct plog_que *q);
+static char *plog_que_get(struct plog_que *q);
+static int plog_que_put(struct plog_que *q, char *msg);
 
 void plog_tick(void *data)
 {
@@ -43,18 +62,38 @@ void plog_tick(void *data)
     printf("plog tick: %s", ctime(&t));
 }
 
+static void *plog_routine(void *arg)
+{
+    struct plog *p = &plog_obj;
+    char *msg = NULL;
+
+    while(1)
+    {
+        msg = plog_que_get(&p->que);
+        if(NULL != msg)
+        {
+            plog_con_send(&p->con, msg);
+            free(msg);      /* don't forget free msg */
+        }
+    }
+
+    return NULL;
+}
+
 /* init plog module */
 void plog_init(void)
 {
     struct plog *p = &plog_obj;
     
     p->key = 0;
-    con_init(&p->con);
-    memset(p->buff, 0, sizeof(p->buff));
+    plog_con_init(&p->con);
+    plog_que_init(&p->que);
     /* add plog command */
     cmd_add("plog", "plog execution procedure", CMD_INDENT"plog [run/cmd] on/off", plog_command, NULL);
     
-    tick_add("plog", plog_tick, p, 10000);
+
+    pthread_create(&p->tid, NULL, plog_routine, NULL);
+//    tick_add("plog", plog_tick, p, 10000);
     
 
     return;
@@ -72,18 +111,24 @@ void plog_out(char *mod, const char *fmt, const char *func, int line, ...)
     struct plog *p = &plog_obj;
     u16_t ret = 0;
     va_list ap;
-    char *buff = p->buff;
+    char *msg = NULL;
 
-    memset(buff, 0, PBUF_SIZE);
+
+    msg = (char *)malloc(PBUF_SIZE); 
+    if(NULL == msg)
+    {
+        printf("%s:%d calloc fail!\r\n", __func__, __LINE__);
+        return;
+    }
 
     /* format log */
-    ret += snprintf(buff+ret, PBUF_SIZE-ret, "%s: %d ## %s ## ", func, line, mod);
+    ret += snprintf(msg+ret, PBUF_SIZE-ret, "%s: %d ## %s ## ", func, line, mod);
     va_start(ap, line);
-    ret += vsnprintf(buff+ret, PBUF_SIZE-ret, fmt, ap);
+    ret += vsnprintf(msg+ret, PBUF_SIZE-ret, fmt, ap);
     va_end(ap);
-
-    /* send log to client */
-    con_send(&p->con, buff, ret);
+    
+    /* put init message queue */
+    plog_que_put(&p->que, msg);
 
     return;
 }
@@ -93,17 +138,43 @@ void plog_uninit(void)
     return;
 }
 
+u16_t plog_con_dump(struct plog_con *c, char *buff, u16_t len)
+{
+    u16_t ret = 0;
+
+    ret += snprintf(buff+ret, len-ret, "connect ufd  : %d\r\n", c->ufd);
+    ret += snprintf(buff+ret, len-ret, "connect addr : %s\r\n", 
+                                        inet_ntoa(c->caddr.sin_addr));
+    ret += snprintf(buff+ret, len-ret, "connect port : %u\r\n",
+                                        ntohs(c->caddr.sin_port));
+
+    return ret;
+}
+
+u16_t plog_que_dump(struct plog_que *q, char *buff, u16_t len)
+{
+    u16_t ret = 0;
+
+    ret += snprintf(buff+ret, len-ret, "queue front     : %d\r\n", q->front);
+    ret += snprintf(buff+ret, len-ret, "queue rear      : %d\r\n", q->rear);
+    ret += snprintf(buff+ret, len-ret, "queue size      : %d\r\n", ((q->front-q->rear)+PMSG_SIZE)%PMSG_SIZE);
+
+    return ret;
+}
+
 /* dump plog module information to buffer */
 u16_t plog_dump(char *buff, u16_t len)
 {
     struct plog *p = &plog_obj;
-    struct con *c = &p->con;
     u16_t ret = 0;
     
     ret += snprintf(buff+ret, len-ret, "/*** plog summary ***/\n");
-    ret += snprintf(buff+ret, len-ret, "key : %#x\n", p->key);
-    ret += snprintf(buff+ret, len-ret, "ufd : %d\n", c->ufd);
-    ret += snprintf(buff+ret, len-ret, "add : %s\n", inet_ntoa(c->caddr.sin_addr));
+    ret += snprintf(buff+ret, len-ret, "thread id   : %#lx\r\n", p->tid);
+    ret += snprintf(buff+ret, len-ret, "plog key    : %#x\n", p->key);
+    ret += snprintf(buff+ret, len-ret, "-------------------------\r\n");
+    ret += plog_con_dump(&p->con, buff+ret, len-ret);
+    ret += snprintf(buff+ret, len-ret, "-------------------------\r\n");
+    ret += plog_que_dump(&p->que, buff+ret, len-ret);
 
     return ret;
 }
@@ -176,9 +247,23 @@ err_key:
 err_argc: 
     return ret;
 }
+/* open the mods's key */
+static void plog_key_on(u32_t mods)
+{
+    plog_obj.key |= mods;
+
+    return;
+}
+/* close the mods's key */
+static void plog_key_off(u32_t mods)
+{
+    plog_obj.key &= ~mods;
+
+    return;
+}
 
 /* init connection module */
-static void con_init(struct con *c)
+static void plog_con_init(struct plog_con *c)
 {
     if(c)
     {
@@ -189,30 +274,18 @@ static void con_init(struct con *c)
     return;
 }
 /* send log to client */
-static void con_send(struct con *c, char *buff, u16_t len)
+static void plog_con_send(struct plog_con *c, char *msg)
 {
     /* has a client */
-    if(c && c->ufd > 0 && NULL!=buff && 0!=len)
-        sendto(c->ufd, buff, len, 0, (const struct sockaddr*)&c->caddr, c->clen);
+    if(c && c->ufd > 0 && NULL!=msg)
+        sendto(c->ufd, msg, strlen(msg), 0, (const struct sockaddr*)&c->caddr, c->clen);
 
-    return;
-}
-/* open the mods's key */
-static void plog_key_on(u32_t mods)
-{
-    plog_obj.key |= mods;
-    return;
-}
-/* close the mods's key */
-static void plog_key_off(u32_t mods)
-{
-    plog_obj.key &= ~mods;
     return;
 }
 /* set client's connection information */
 static void plog_con_on(int ufd, struct sockaddr_in *addr, socklen_t len)
 {
-    struct con *c = &plog_obj.con;
+    struct plog_con *c = &plog_obj.con;
 
     if(NULL==addr)
         return;
@@ -231,13 +304,61 @@ static void plog_con_on(int ufd, struct sockaddr_in *addr, socklen_t len)
 /* clear client's connect information */
 static void plog_con_off(void)
 {
-    struct con *c = &plog_obj.con;
+    struct plog_con *c = &plog_obj.con;
 
     /* clear all information */
-    con_init(c);
+    plog_con_init(c);
 
     /* set PLOG_KEY off*/
     plog_obj.key &= ~PLOG_KEY;
 
     return;
 }
+
+static void plog_que_init(struct plog_que *q)
+{
+    pthread_cond_init(&q->in, NULL);
+    pthread_cond_init(&q->out, NULL);
+    pthread_mutex_init(&q->lock, NULL);
+    q->front = q->rear = 0;
+
+    return;
+}
+
+static int plog_que_put(struct plog_que *q, char *msg)
+{
+    pthread_mutex_lock(&q->lock);
+    while(q->front == (q->rear+1)%PMSG_SIZE)    /* wait space for storing message if que is full */
+    {
+ //       printf("%s:%d queue is full!\r\n", __func__, __LINE__);
+        pthread_cond_wait(&q->in, &q->lock);
+    }
+
+    q->pmsg[q->rear] = msg;                     /* put message into queue */
+    q->rear = (q->rear+1)%PMSG_SIZE;
+    
+    pthread_cond_signal(&q->out);               /* notify message has been putted, message is available */
+    pthread_mutex_unlock(&q->lock);
+
+    return 0;
+}
+static char *plog_que_get(struct plog_que *q)
+{
+    char *msg = NULL;
+
+    pthread_mutex_lock(&q->lock);
+    while(q->front == q->rear)                  /* wait for getting message if que is empty */
+    {
+//        printf("%s:%d queue is empty!\r\n", __func__, __LINE__);
+        pthread_cond_wait(&q->out, &q->lock);
+    }
+
+    msg = q->pmsg[q->front];                    /* get message from queue */
+    q->front = (q->front+1)%PMSG_SIZE;
+
+    pthread_cond_signal(&q->in);                /* notify message has been getted, space is available*/
+    pthread_mutex_unlock(&q->lock);
+    
+    return msg;
+}
+

@@ -23,7 +23,7 @@ int main(int argc, char *argv[])
 
     while(1)
     {
-        sleep(1);
+        usleep(1000*1000);
         plog(RUN, "main run!\n");
     }
 

@@ -21,11 +21,18 @@ static struct sclient **sclient_max_ppn_find(struct sclient *cur);
 static void sclient_swap(struct sclient *d, struct sclient *s);
 static int sclient_close(struct sclient *pn);
 
+/******************************************************************************
+* brief    : init a AVL tree
+* Param    : 
+* Return   :
+* Note     :
+******************************************************************************/
 void sclient_init(struct sclient_mgr *m)
 {
     if(NULL != m)
         m->root = NULL;
 }
+
 /******************************************************************************
 * brief    : add a node into avl tree
 * Param    : 
