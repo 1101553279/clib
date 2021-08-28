@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include "plog.h"
 #include "util.h"
+#include "cfg.h"
 #include "command.h"
 #include "log.h"
 #include "sock.h"
@@ -9,6 +10,9 @@
 
 int main(int argc, char *argv[])
 {
+    /* init configure module */
+    cfg_init();
+
     /* must call first: init command module, because plog_init() function use it */
     cmd_init();
 

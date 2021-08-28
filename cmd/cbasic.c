@@ -6,6 +6,7 @@
 #include "plog.h"
 #include "tick.h"
 #include "sock.h"
+#include "cfg.h"
 
 static int test_command(int argc, char *argv[], char *buff, int len, void *user);
 static int test_command_replace(int argc, char *argv[], char *buff, int len, void *user);
@@ -104,6 +105,8 @@ static int dump_command(int argc, char *argv[], char *buff, int len, void *user)
             ret += cmd_dump(buff+ret, len-ret);
         else if(0 == strcmp(argv[1], "tick"))
             ret += tick_dump(buff+ret, len-ret);
+        else if(0 == strcmp(argv[1], "cfg"))
+            ret += cfg_dump(buff+ret,len-ret);
         else
             ret += snprintf(buff+ret, len-ret, "%s %s <- no this module\n", argv[0], argv[1]);
     }

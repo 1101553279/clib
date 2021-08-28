@@ -24,5 +24,5 @@ add_subdirectory(sock)
 add_subdirectory(tick)
 
 #link libraries
-target_link_libraries(plc cfg plog util cmd sock tick)
+target_link_libraries(plc plog util cmd sock tick cfg)
 
