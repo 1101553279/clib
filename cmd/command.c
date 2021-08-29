@@ -21,6 +21,7 @@
 #define CMD_BUFF_SIZE   4096
 
 struct cmd_manager{
+    u8_t init;
     struct command *root;   /* root pointer */
     int sfd;                /* server file description */
     pthread_t tid;          /* thread id */
@@ -81,6 +82,8 @@ void cmd_init(void)
     }
 //    pthread_setname_np(cm->tid, CMD_TDNAME);
     
+    cm->init = 1;
+
     /* basic command add */
     cbasic_init();
     
@@ -171,6 +174,12 @@ int cmd_add(char *name, char *spec, char *usage, command_cb_t func, void *user)
     struct cmd_manager *cm = &cm_obj;
     struct command **ppn;
 
+    if(1 != cm->init)
+    {
+        log_red("command has not been inited -> can't add\r\n");
+        return -1;
+    }
+
     if(NULL==name || NULL==func)
     {
         log_red("command add fail: %s == NULL\n", (NULL==name)? "name": "func");
@@ -190,6 +199,12 @@ int cmd_add_force(char *name, char *spec, char *usage, command_cb_t func, void *
 {
     struct cmd_manager *cm = &cm_obj;
     struct command **ppn;
+    
+    if(1 != cm->init)
+    {
+        log_red("command has not been inited -> can't add_force\r\n");
+        return -1;
+    }
 
     if(NULL==name || NULL==func)
     {
@@ -217,6 +232,12 @@ int cmd_del(char *name)
     struct cmd_manager *cm = &cm_obj; 
     struct command *c = NULL;
     struct command **ppn;
+    
+    if(1 != cm->init)
+    {
+        log_red("command has not been inited -> can't del\r\n");
+        return -1;
+    }
 
     if(NULL == name)
     {

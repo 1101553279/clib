@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "plog.h"
+#include "log.h"
 
 /*******************************************************************
 example: cfg.ini 
@@ -54,6 +55,7 @@ struct cfg_section{
 };
 
 struct cfg_mgr{
+    u8_t init;
     struct list_head sec_head;  /* section head */
     int count;                  /* section count */
 };
@@ -83,6 +85,8 @@ void cfg_init(void)
     c->count = 0;
 
     ini_parse(CFG_NAME, cfg_ini_callback, c);
+
+    c->init = 1;
     
     return;
 }
@@ -115,6 +119,12 @@ int cfg_read(const char *sec_name, const char *key, char** value)
     struct list_head *pos1;
     struct list_head *pos2;
     int ret = -1;
+    
+    if(1 != c->init)
+    {
+        log_red("cfg has not been inited - can't read\r\n");
+        return -1;
+    }
 
     if(NULL==sec || NULL==key || NULL==value)
         return -1;

@@ -7,10 +7,10 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include "command.h"
-#include "plog.h"
 #include "tick.h"
 #include <time.h>
 #include "pthread.h"
+#include "log.h"
 
 #define PBUF_SIZE   1024
 #define PMSG_SIZE   20
@@ -31,6 +31,7 @@ struct plog_que{
 };
 
 struct plog{
+    u8_t init;
     pthread_t tid;
     u32_t key;                  /* debug key, each bit indicate a mod */
     struct plog_con con;        /* connection for send msg */
@@ -90,6 +91,8 @@ void plog_init(void)
     plog_que_init(&p->que);
     
     pthread_create(&p->tid, NULL, plog_routine, NULL);
+
+    p->init = 1;
     
     return;
 }
@@ -119,6 +122,11 @@ void plog_out(char *mod, const char *fmt, const char *func, int line, ...)
     va_list ap;
     char *msg = NULL;
 
+    if(1 != p->init)
+    {
+        log_red("plog has not been inited - mod(%s) can't plog\r\n", mod);
+        return;
+    }
 
     msg = (char *)malloc(PBUF_SIZE); 
     if(NULL == msg)

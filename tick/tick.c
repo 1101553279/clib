@@ -27,6 +27,7 @@ struct tknode{
 };
 
 struct tick{
+    u8_t init;
     struct list_head head;
     pthread_t tid;  /* thread id */
     u32_t ctimes;   /* current times */
@@ -79,6 +80,7 @@ void tick_init(void)
     }
     
     log_grn("tick init success!\r\n");
+    tk->init = 1;
 
     return;
 }
@@ -96,6 +98,12 @@ int tick_add(char *name, tknode_cb_t cb, void *udata, u16_t div)
     struct tick *tk = &tick_obj;
     struct tknode *node = NULL;
     struct list_head *pos;
+
+    if(1 != tk->init)
+    {
+        log_red("tick has not been inited - name(%s) can't not add\r\n", name);
+        return -1;
+    }
 
     if(NULL == cb)
     {
@@ -138,6 +146,12 @@ int tick_rmv(char *name)
     struct tknode *node = NULL;
     struct list_head *pos = NULL;
     struct list_head *n = NULL;
+    
+    if(1 != tk->init)
+    {
+        log_red("tick has not been inited - name(%s) can't not rmv\r\n", name);
+        return -1;
+    }
 
     list_for_each_safe(pos, n, &tk->head)
     {
