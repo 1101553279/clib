@@ -8,6 +8,7 @@
 #include "btype.h"
 #include <pthread.h>
 #include "command.h"
+#include "cfg.h"
 
 struct sock{
     pthread_t tid;          /* pthread id */
@@ -21,7 +22,7 @@ int sock_init(void)
 {
     struct sock *sock = &sock_obj;
 
-    if(-1 == tcps_init(&sock->tcp, 3000))
+    if(-1 == tcps_init(&sock->tcp, (u16_t )atoi(cfg_read("sock", "tport", NULL))))
         return -1;
 
     if(0 != pthread_create(&sock->tid, NULL, sock_routine, NULL))

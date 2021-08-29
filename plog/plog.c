@@ -18,6 +18,9 @@
 #define PMSG_DEF_SIZE   20      /* default size */
 #define PMSG_MAX_SIZE   1000    /* maximum size */
 
+/* for debug */
+#define PLOG_LOCAL  1
+
 struct plog_con{
     int ufd;                    /* udp file description */
     struct sockaddr_in caddr;   /* client address */
@@ -89,23 +92,14 @@ static void *plog_routine(void *arg)
 void plog_init(void)
 {
     struct plog *p = &plog_obj;
-    u16_t size = PMSG_DEF_SIZE;
-    char *msg_size;
     
-    p->key = 0;
+    p->key = PLOG_KEY|PLOG_CFG;
+
     plog_con_init(&p->con);
 
     /* read msg_size from configure file */
-    if(0 == cfg_read("plog", "msg_size", &msg_size))
-    {
-        size = (u16_t)atoi(msg_size);
-        if(size < PMSG_MIN_SIZE || size > PMSG_MAX_SIZE)
-            size = PMSG_DEF_SIZE;
-    }
-    plog_que_init(&p->que, size);
-    
+    plog_que_init(&p->que, (u16_t )atoi(cfg_read("plog", "msize", NULL)));
     pthread_create(&p->tid, NULL, plog_routine, NULL);
-
     p->init = 1;
     
     return;
@@ -134,6 +128,10 @@ void plog_out(char *mod, const char *fmt, const char *func, int line, ...)
     struct plog *p = &plog_obj;
     u16_t ret = 0;
     va_list ap;
+
+#if PLOG_LOCAL
+    char msg[PBUF_SIZE];
+#else
     char *msg = NULL;
 
     if(1 != p->init)
@@ -148,15 +146,19 @@ void plog_out(char *mod, const char *fmt, const char *func, int line, ...)
         printf("%s:%d calloc fail!\r\n", __func__, __LINE__);
         return;
     }
-
+#endif
     /* format log */
     ret += snprintf(msg+ret, PBUF_SIZE-ret, "%s: %d ## %s ## ", func, line, mod);
     va_start(ap, line);
     ret += vsnprintf(msg+ret, PBUF_SIZE-ret, fmt, ap);
     va_end(ap);
     
+#if PLOG_LOCAL
+    printf("%s", msg);
+#else
     /* put init message queue */
     plog_que_put(&p->que, msg);
+#endif
 
     return;
 }

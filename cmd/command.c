@@ -65,16 +65,12 @@ void cmd_init(void)
 {
     struct cmd_manager *cm = &cm_obj;
     int ret;
-    char *port;
 
     /* init binary search tree's root */
     cm->root = NULL;
 
     /* read port frome ini configure file */
-    if(0 != cfg_read("cmd", "port", &port))
-        cm->sfd = cmd_srv_init(CMD_SRV_PORT);
-    else
-        cm->sfd = cmd_srv_init((u16_t)atoi(port));
+    cm->sfd = cmd_srv_init((u16_t )atoi(cfg_read("cmd", "port", NULL)));
     if(cm->sfd < 0)
     {
         log_red("srv init fail!\n");
