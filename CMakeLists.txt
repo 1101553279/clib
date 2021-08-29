@@ -4,7 +4,7 @@ project(plc VERSION 1.0)
 
 
 #exe is plc
-add_executable(plc plc.c)
+add_executable(plc plc.c init/init.c)
 
 #header directories
 include_directories(include)

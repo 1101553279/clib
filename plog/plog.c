@@ -88,13 +88,19 @@ void plog_init(void)
     p->key = 0;
     plog_con_init(&p->con);
     plog_que_init(&p->que);
-    /* add plog command */
-    cmd_add("plog", "plog execution procedure", CMD_INDENT"plog [run/cmd] on/off", plog_command, NULL);
     
-
     pthread_create(&p->tid, NULL, plog_routine, NULL);
-//    tick_add("plog", plog_tick, p, 10000);
     
+    return;
+}
+
+/* append plog init */
+void plog_init_append(void)
+{
+    /* add plog command */
+    cmd_add("plog", "plog execution procedure", CMD_INDENT"plog [run/cmd] on/off", 
+            plog_command, NULL);
+//    tick_add("plog", plog_tick, p, 10000);
 
     return;
 }
@@ -216,6 +222,8 @@ static int plog_command(int argc, char *argv[], char *buff, int len, void *user)
             key |= PLOG_RUN;
         else if(0 == strcmp("cmd", arg))
             key |= PLOG_CMD;
+        else if(0 == strcmp("cfg", arg))
+            key |= PLOG_CFG;
         else
         {
             ret += snprintf(buff+ret, len-ret, "%s %s %s <- no this mod\n", argv[0], mbuff, arg);

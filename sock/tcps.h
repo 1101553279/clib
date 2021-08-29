@@ -15,6 +15,7 @@ struct sock_tcps{
 typedef sclient_iterate_t tcps_iterate_t;
 
 int tcps_init(struct sock_tcps *t, u16_t port);
+int tcps_init_append(struct sock_tcps *t);
 nfds_t tcps_fds_size(struct sock_tcps *t);
 nfds_t tcps_fds(struct sock_tcps *t, struct pollfd *fds, nfds_t size);
 int tcps_fds_in(struct sock_tcps *t, int fd);

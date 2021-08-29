@@ -79,10 +79,18 @@ void tick_init(void)
     }
     
     log_grn("tick init success!\r\n");
-    cmd_add("tick", "manage tick module", CMD_INDENT"tick [list|dump]", tick_command, tk);
 
     return;
 }
+
+void tick_init_append(void)
+{
+    cmd_add("tick", "manage tick module", CMD_INDENT"tick [list|dump]", 
+            tick_command, &tick_obj);
+
+    return;
+}
+
 int tick_add(char *name, tknode_cb_t cb, void *udata, u16_t div)
 {
     struct tick *tk = &tick_obj;

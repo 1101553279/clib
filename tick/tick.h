@@ -7,6 +7,7 @@
 typedef void (*tknode_cb_t)(void *udata);
 
 void tick_init(void);
+void tick_init_append(void);
 int tick_add(char *name, tknode_cb_t cb, void *udata, u16_t div);
 int tick_rmv(char *name);
 u16_t tick_dump(char *buff, u16_t len);

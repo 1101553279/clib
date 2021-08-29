@@ -30,6 +30,13 @@ int sock_init(void)
     return 0;
 }
 
+void sock_init_append()
+{
+    tcps_init_append(&sock_obj.tcp);
+
+    return;
+}
+
 static nfds_t sock_poll_init(struct sock *sock, struct pollfd **fds)
 {
     nfds_t offset = 0;
