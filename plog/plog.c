@@ -11,9 +11,12 @@
 #include <time.h>
 #include "pthread.h"
 #include "log.h"
+#include "cfg.h"
 
-#define PBUF_SIZE   1024
-#define PMSG_SIZE   20
+#define PBUF_SIZE       1024
+#define PMSG_MIN_SIZE   2       /* minimum size */
+#define PMSG_DEF_SIZE   20      /* default size */
+#define PMSG_MAX_SIZE   1000    /* maximum size */
 
 struct plog_con{
     int ufd;                    /* udp file description */
@@ -22,7 +25,8 @@ struct plog_con{
 };
 
 struct plog_que{
-    char *pmsg[PMSG_SIZE];
+    char **pmsg;                /* message size can configure */
+    u16_t size;                 /* message size */
     int front;                  /* queue's front */
     int rear;                   /* queue's rear */
     pthread_mutex_t lock;
@@ -50,7 +54,7 @@ static void plog_con_send(struct plog_con *c, char *buff);
 static void plog_con_on(int ufd, struct sockaddr_in *addr, socklen_t len);
 static void plog_con_off(void);
 /* plog's message queue */
-static void plog_que_init(struct plog_que *q);
+static void plog_que_init(struct plog_que *q, u16_t size);
 static char *plog_que_get(struct plog_que *q);
 static int plog_que_put(struct plog_que *q, char *msg);
 
@@ -85,10 +89,20 @@ static void *plog_routine(void *arg)
 void plog_init(void)
 {
     struct plog *p = &plog_obj;
+    u16_t size = PMSG_DEF_SIZE;
+    char *msg_size;
     
     p->key = 0;
     plog_con_init(&p->con);
-    plog_que_init(&p->que);
+
+    /* read msg_size from configure file */
+    if(0 == cfg_read("plog", "msg_size", &msg_size))
+    {
+        size = (u16_t)atoi(msg_size);
+        if(size < PMSG_MIN_SIZE || size > PMSG_MAX_SIZE)
+            size = PMSG_DEF_SIZE;
+    }
+    plog_que_init(&p->que, size);
     
     pthread_create(&p->tid, NULL, plog_routine, NULL);
 
@@ -171,7 +185,10 @@ u16_t plog_que_dump(struct plog_que *q, char *buff, u16_t len)
 
     ret += snprintf(buff+ret, len-ret, "queue front     : %d\r\n", q->front);
     ret += snprintf(buff+ret, len-ret, "queue rear      : %d\r\n", q->rear);
-    ret += snprintf(buff+ret, len-ret, "queue size      : %d\r\n", ((q->front-q->rear)+PMSG_SIZE)%PMSG_SIZE);
+    ret += snprintf(buff+ret, len-ret, "queue pmsg      : %p\r\n", q->pmsg);
+    ret += snprintf(buff+ret, len-ret, "queue size      : %u\r\n", q->size);
+    ret += snprintf(buff+ret, len-ret, "queue len       : %d\r\n", 
+            ((q->front-q->rear)+q->size)%q->size);
 
     return ret;
 }
@@ -331,8 +348,13 @@ static void plog_con_off(void)
     return;
 }
 
-static void plog_que_init(struct plog_que *q)
+static void plog_que_init(struct plog_que *q, u16_t size)
 {
+    q->pmsg = malloc(size * sizeof(char *));
+    if(NULL == q->pmsg)
+        return;
+
+    q->size = size;
     pthread_cond_init(&q->in, NULL);
     pthread_cond_init(&q->out, NULL);
     pthread_mutex_init(&q->lock, NULL);
@@ -343,24 +365,31 @@ static void plog_que_init(struct plog_que *q)
 
 static int plog_que_put(struct plog_que *q, char *msg)
 {
+    if(NULL==q || NULL==q->pmsg)
+        return -1;
+
     pthread_mutex_lock(&q->lock);
-    while(q->front == (q->rear+1)%PMSG_SIZE)    /* wait space for storing message if que is full */
+    while(q->front == (q->rear+1)%q->size)    /* wait space for storing message if que is full */
     {
  //       printf("%s:%d queue is full!\r\n", __func__, __LINE__);
         pthread_cond_wait(&q->in, &q->lock);
     }
 
     q->pmsg[q->rear] = msg;                     /* put message into queue */
-    q->rear = (q->rear+1)%PMSG_SIZE;
+    q->rear = (q->rear+1)%q->size;
     
     pthread_cond_signal(&q->out);               /* notify message has been putted, message is available */
     pthread_mutex_unlock(&q->lock);
 
     return 0;
 }
+
 static char *plog_que_get(struct plog_que *q)
 {
     char *msg = NULL;
+
+    if(NULL==q || NULL==q->pmsg)
+        return NULL;
 
     pthread_mutex_lock(&q->lock);
     while(q->front == q->rear)                  /* wait for getting message if que is empty */
@@ -370,7 +399,7 @@ static char *plog_que_get(struct plog_que *q)
     }
 
     msg = q->pmsg[q->front];                    /* get message from queue */
-    q->front = (q->front+1)%PMSG_SIZE;
+    q->front = (q->front+1)%q->size;
 
     pthread_cond_signal(&q->in);                /* notify message has been getted, space is available*/
     pthread_mutex_unlock(&q->lock);

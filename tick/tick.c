@@ -64,10 +64,16 @@ static int tick_command(int argc, char *argv[], char *buff, int len, void *user)
 
     return ret;
 }
+
+/****************************************************************************** 
+ * brief    : init tick module
+ * Return   : 
+ * Note     :                                                                   
+ ******************************************************************************/
 void tick_init(void)
 {
     struct tick *tk = &tick_obj; 
-    int ret = 0;
+    s8_t ret = 0;
 
     INIT_LIST_HEAD(&tk->head);
    
@@ -93,6 +99,15 @@ void tick_init_append(void)
     return;
 }
 
+/****************************************************************************** 
+ * brief    : add a tick_node into tick module 
+ * Param    : name  tick_node's name 
+ * Param    : cb    tick_node's callback
+ * Param    : udata tick_node's userdata
+ * Param    : div   tick_node's interval
+ * Return   : 
+ * Note     :                                                                   
+ ******************************************************************************/
 int tick_add(char *name, tknode_cb_t cb, void *udata, u16_t div)
 {
     struct tick *tk = &tick_obj;
@@ -140,6 +155,12 @@ int tick_add(char *name, tknode_cb_t cb, void *udata, u16_t div)
     return 0;
 }
 
+/****************************************************************************** 
+ * brief    : remove a tick_node into tick module 
+ * Param    : name  tick_node's name 
+ * Return   : 
+ * Note     :                                                                   
+ ******************************************************************************/
 int tick_rmv(char *name)
 {
     struct tick *tk = &tick_obj;

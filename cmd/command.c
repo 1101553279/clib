@@ -6,6 +6,7 @@
 #include "blist.h"
 #include "log.h"
 #include <unistd.h>
+#include "cfg.h"
 #define _GNU_SOURCE
 #include <pthread.h>
 #include <string.h>
@@ -64,10 +65,16 @@ void cmd_init(void)
 {
     struct cmd_manager *cm = &cm_obj;
     int ret;
+    char *port;
 
+    /* init binary search tree's root */
     cm->root = NULL;
 
-    cm->sfd = cmd_srv_init(CMD_SRV_PORT);
+    /* read port frome ini configure file */
+    if(0 != cfg_read("cmd", "port", &port))
+        cm->sfd = cmd_srv_init(CMD_SRV_PORT);
+    else
+        cm->sfd = cmd_srv_init((u16_t)atoi(port));
     if(cm->sfd < 0)
     {
         log_red("srv init fail!\n");
