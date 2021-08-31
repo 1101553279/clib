@@ -5,8 +5,37 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define CFG_NAME "clib.ini"
+/*******************************************************************
+example: cfg.ini 
+[cmd]
+    task_name = cmd
+    port = 3000
+[plog]
+    task_name= plog
+    msg_size = 20
+[sock]
+    tcps_port = 3000
 
+list structure:
+                section_node          section_node           section node
+         <-----  -----------   <-----  ------------   <-----  ----------
+sec_head        | sec:"sock"|         | sec:"plog" |         |sec:"cmd" |
+         ----->  -----------   ----->  -----------    ----->  ----------
+                   ^ |                      ^ |                   ^ |
+                   | V                      | V                   | V
+               -----------            ---------------         ---------------
+              |name:"port"|          |name:"msg_size"|       |name:"tcps_port"|
+              |value:"cmd"|          |value:"20"     |       |value:"3000"    |
+               -----------            ---------------         ---------------
+                  ^ |                    ^ |               
+                  | V                    | V               
+             -----------------       -----------------     
+            |name:"task_name" |     |name:"task_name" |    
+            |value:"cmd"      |     |value:"plog"     |    
+             -----------------       -----------------     
+
+********************************************************************/
+#define CFG_NAME "clib.ini"
 
 struct cfg_property{
     struct list_head node;
@@ -28,107 +57,11 @@ struct cfg_mgr{
 
 static struct cfg_mgr cfg_obj;
 
-static int cfg_command(int argc, char *argv[], char *buff, int len, void *user)
-{
-
-    return 0;
-}
-
-int cfg_property_add(struct list_head *head, const char *name, const char *value)
-{
-    struct list_head *pos = NULL;
-    struct cfg_section *sec = NULL;
-    struct cfg_property *pro = NULL;
-    int flag = 0;
-
-    /* iterate the property list */
-    list_for_each(pos, head)
-    {
-        pro = list_entry(pos, struct cfg_property, node);
-        if(0 == strcmp(name, pro->name))
-        {
-            flag = 1;
-            break;
-        }
-    }
-    
-    if(1==flag && NULL!=pro)     /* has been added */
-    {
-        printf("name(%s):value(%s) repalace name(%s):value(%s)\r\n", pro->name, pro->value, name, value);
-        if(NULL != pro->name)
-            free(pro->name);
-        if(NULL != pro->value)
-            free(pro->value);
-        pro->name = strdup(name);
-        pro->value = strdup(value);
-    }
-    else                        /* has not been added */
-    {
-        pro = (struct cfg_property *)malloc(sizeof(struct cfg_property));
-        if(NULL != pro)
-        {
-            pro->name = strdup(name);
-            pro->value = strdup(value);
-            list_add(&pro->node, head); 
-            sec = list_entry(head, struct cfg_section, pro_head);
-            sec->count += 1;
-        }
-        else
-            return 0;
-    }
-
-    return 1;
-}
-
-int cfg_section_add(struct list_head *head, const char *section, const char *name, const char *value)
-{
-    struct list_head *pos;
-    struct cfg_mgr *mgr;
-    struct cfg_section *sec;
-    int flag = 0;
-    int ret = 0;
-    
-    /* iterate the section list */
-    list_for_each(pos, head)
-    {
-        sec = list_entry(pos, struct cfg_section, node);
-        if(0 == strcmp(section, sec->sec))
-        {
-            flag = 1;
-            break;
-        }
-    }
-
-    if(1==flag && NULL!=sec)        /* section has been existed */
-        ret = cfg_property_add(&sec->pro_head, name, value);
-    else                            /* section has not been added */
-    {
-        sec = (struct cfg_section *)malloc(sizeof(struct cfg_section));
-        if(NULL != sec)
-        {
-            INIT_LIST_HEAD(&sec->pro_head);
-            sec->sec = strdup(section);
-            ret = cfg_property_add(&sec->pro_head, name, value);
-            list_add(&sec->node, head);
-            mgr = list_entry(head, struct cfg_mgr, sec_head);
-            mgr->count += 1;        /* new section */
-        }
-        else
-            ret = 0;        /* error */
-    }
-
-    return ret;
-}
-
-
-
+static int cfg_property_add(struct cfg_section *sec, const char *name, const char *value);
+static int cfg_section_add(struct cfg_mgr *mgr, const char *section, 
+        const char *name, const char *value);
 static int cfg_ini_callback(void *user, const char *section, 
-        const char *name, const char *value)
-{
-    struct cfg_mgr *c = (struct cfg_mgr *)user;
-    
-    return cfg_section_add(&c->sec_head, section, name, value);
-}
+        const char *name, const char *value);
 
 void cfg_init(void)
 {
@@ -138,7 +71,7 @@ void cfg_init(void)
     c->count = 0;
 
     ini_parse(CFG_NAME, cfg_ini_callback, c);
-
+    
     return;
 }
 
@@ -204,4 +137,95 @@ u16_t cfg_dump(char *buff, u16_t len)
 #endif
     
     return ret;
+}
+
+static int cfg_property_add(struct cfg_section *sec, const char *name, const char *value)
+{
+    struct list_head *pos = NULL;
+    struct cfg_property *pro = NULL;
+    int flag = 0;
+
+    /* iterate the property list */
+    list_for_each(pos, &sec->pro_head)
+    {
+        pro = list_entry(pos, struct cfg_property, node);
+        if(0 == strcmp(name, pro->name))
+        {
+            flag = 1;
+            break;
+        }
+    }
+    
+    if(1==flag && NULL!=pro)     /* has been added */
+    {
+        printf("name(%s):value(%s) repalace name(%s):value(%s)\r\n", pro->name, pro->value, name, value);
+        if(NULL != pro->name)
+            free(pro->name);
+        if(NULL != pro->value)
+            free(pro->value);
+        pro->name = strdup(name);
+        pro->value = strdup(value);
+    }
+    else                        /* has not been added */
+    {
+        pro = (struct cfg_property *)malloc(sizeof(struct cfg_property));
+        if(NULL != pro)
+        {
+            pro->name = strdup(name);
+            pro->value = strdup(value);
+            list_add(&pro->node, &sec->pro_head); 
+            sec->count += 1;
+        }
+        else
+            return 0;
+    }
+
+    return 1;
+}
+
+static int cfg_section_add(struct cfg_mgr *mgr, const char *section, 
+        const char *name, const char *value)
+{
+    struct list_head *pos;
+    struct cfg_section *sec;
+    int flag = 0;
+    int ret = 0;
+    
+    /* iterate the section list */
+    list_for_each(pos, &mgr->sec_head)
+    {
+        sec = list_entry(pos, struct cfg_section, node);
+        if(0 == strcmp(section, sec->sec))
+        {
+            flag = 1;
+            break;
+        }
+    }
+
+    if(1==flag && NULL!=sec)        /* section has been existed */
+        ret = cfg_property_add(sec, name, value);
+    else                            /* section has not been added */
+    {
+        sec = (struct cfg_section *)malloc(sizeof(struct cfg_section));
+        if(NULL != sec)
+        {
+            INIT_LIST_HEAD(&sec->pro_head);
+            sec->sec = strdup(section);
+            ret = cfg_property_add(sec, name, value);
+            list_add(&sec->node, &mgr->sec_head);
+            mgr->count += 1;        /* new section */
+        }
+        else
+            ret = 0;        /* error */
+    }
+
+    return ret;
+}
+
+static int cfg_ini_callback(void *user, const char *section, 
+        const char *name, const char *value)
+{
+    struct cfg_mgr *c = (struct cfg_mgr *)user;
+    
+    return cfg_section_add(c, section, name, value);
 }
