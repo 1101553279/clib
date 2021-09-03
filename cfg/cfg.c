@@ -271,6 +271,14 @@ stop:
     return;
 }
 
+/****************************************************************************** 
+ * brief    : return default value of the section & key
+ * Param    : section
+ * Param    : key
+ * Param    : ok
+ * Return   : 
+ * Note     :                                                                   
+ ******************************************************************************/
 const char *cfg_default_read(const char *section, const char *key, int *ok)
 {
     char *value = NULL;
@@ -304,12 +312,14 @@ const char *cfg_default_read(const char *section, const char *key, int *ok)
         if(NULL != ok)
             *ok = 0;
 
-    return NULL;
+    return value;
 }
+
 /****************************************************************************** 
  * brief    : get value of property of section
- * Param    : sno       section no
- * Param    : pno       property no
+ * Param    : section
+ * Param    : key
+ * Param    : ok
  * Return   : 
  * Note     :                                                                   
  ******************************************************************************/
