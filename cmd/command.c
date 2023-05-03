@@ -90,7 +90,7 @@ void cmd_init(void)
     /* basic command add */
     cbasic_init();
     
-    cmd_add("cmd", "list all commands", CMD_INDENT"cmd list", cmd_command, NULL);
+    cmd_add("cmd", "list all commands\r\n","cmd list\r\n", cmd_command, NULL);
     
     return;
 

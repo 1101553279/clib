@@ -3,6 +3,10 @@
 #include "btype.h"
 #include <string.h>
 #include <stdio.h>
+#include "argtable3.h"
+#include "blist.h"
+#include "log.h"
+#include "color.h"
 
 #define GET_MAX(x, y)   (((x) > (y)) ? (x) : (y))
 #define GET_MIN(x, y)   (((x) < (y)) ? (x) : (y))

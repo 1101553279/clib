@@ -33,7 +33,7 @@ int tcps_init(struct sock_tcps *t, u16_t port)
 
 int tcps_init_append(struct sock_tcps *t)
 {
-    cmd_add("tcps", "list tcps information", CMD_INDENT"tcps [fd|port|client <list|close>]", 
+    cmd_add("tcps", "list tcps information\r\n","tcps [fd|port|client <list|close>]\r\n", 
             tcps_command, t);
 
     return 0;

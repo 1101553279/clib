@@ -86,7 +86,7 @@ void cfg_init(void)
 void cfg_init_append(void)
 {
     /* add plog command */
-    cmd_add("cfg", "cfg information", CMD_INDENT"cfg <reload|dump>", cfg_command, NULL);
+    cmd_add("cfg", "cfg information\r\n", "cfg <reload|dump>\r\n", cfg_command, NULL);
 
     return;
 }

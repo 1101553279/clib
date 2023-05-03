@@ -93,7 +93,7 @@ void tick_init(void)
 
 void tick_init_append(void)
 {
-    cmd_add("tick", "manage tick module", CMD_INDENT"tick [list|dump]", 
+    cmd_add("tick", "manage tick module\r\n","tick [list|dump]\r\n", 
             tick_command, &tick_obj);
 
     return;

@@ -8,7 +8,6 @@
 #include "blist.h"
 #include "plog.h"
 
-#define CMD_INDENT  "       "
 
 struct command;
 typedef int (*command_cb_t)(int argc, char *argv[], 
@@ -19,7 +18,7 @@ typedef int (*command_cb_t)(int argc, char *argv[],
 #define CMD_USAGE(c)    ((c)->usage)
 
 /* help command need this structure */
-struct command{
+struct command {
     struct command *l;      /* left child */
     struct command *r;      /* right child */
 	char *name;             /* command name */
