@@ -53,6 +53,6 @@ typedef int (*command_iterate_cb_t)(struct command *c, void *user);
 void cmd_iterate(command_iterate_cb_t cb, void *user);
 void cmd_uninit(void);
 
-int cmd_dump(arg_dstr_t ds);
+u16_t cmd_dump(char *buff, u16_t len);
 void cmd_tree_print(void);
 #endif

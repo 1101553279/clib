@@ -8,6 +8,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include "command.h"
+#include "util.h"
 
 #define TICK_NAME       "ticktask"
 #define USEC_PER_SEC    1000000
@@ -37,32 +38,52 @@ static struct tick tick_obj;
 
 static void tknode_do(struct tknode *node, u32_t ctimes);
 static void *task_cb(void *data);
-static u16_t tick_list(struct tick *tk, char *buff, u16_t len);
-static int tick_command(int argc, char *argv[], char *buff, int len, void *user)
+static int tick_list(struct tick *tk, arg_dstr_t ds);
+/***************************************************
+    tick [-d|dump]
+    tick -l
+***************************************************/
+static int tick_arg_cmdfn(int argc, char *argv[], arg_dstr_t ds)
 {
-    struct tick *tk = (struct tick *)user;
-    u16_t ret = 0;
-    int i = 0;
-    int mark = 1;
-
-    if(2 == argc)
+    struct tick *tk = &tick_obj; 
+    struct arg_lit *arg_d;
+    struct arg_lit *arg_l;
+    struct arg_end *end_arg;
+    void *argtable[] = 
     {
-        if(0 == strcmp(argv[1], "list"))
-            ret += tick_list(tk, buff+ret, len-ret);
-        else if(0 == strcmp(argv[1], "dump"))
-            ret += tick_dump(buff+ret, len-ret);
-        else
-            mark = 0;
+        arg_d           = arg_lit0("d", "dump",  "dump information about tick module"),
+        arg_l           = arg_lit0("l", "list",  "list all tick nodes"),
+        end_arg         = arg_end(5),
+    };
+    int ret;
+
+    ret = argtable_parse(argc, argv, argtable, end_arg, ds, argv[0]);
+    if(0 != ret)
+        goto to_parse;
+
+    if(arg_d->count > 0)
+    {
+        tick_dump(ds);
+        goto to_d;
     }
 
-    if(0 == mark)
+    if(arg_l->count > 0)
     {
-        for(i=0; i < argc; i++)
-            ret += snprintf(buff+ret, len-ret, "%s ", argv[i]);
-        ret += snprintf(buff+ret, len-ret, " <- no this cmd\r\n");
+        tick_list(tk, ds);
+        goto to_l;
     }
+    
+    /* help usage for it's self */
+    arg_dstr_catf(ds, "usage: %s", argv[0]);
+    arg_print_syntaxv_ds(ds, argtable, "\r\n");
+    arg_print_glossary_ds(ds, argtable, "%-20s %s\r\n");
 
-    return ret;
+
+to_l:
+to_d:
+to_parse:
+    arg_freetable(argtable, ARY_SIZE(argtable));
+    return 0;
 }
 
 /****************************************************************************** 
@@ -93,8 +114,8 @@ void tick_init(void)
 
 void tick_init_append(void)
 {
-    cmd_add("tick", "manage tick module\r\n","tick [list|dump]\r\n", 
-            tick_command, &tick_obj);
+    
+    arg_cmd_register("tick", tick_arg_cmdfn, "manage tick module");
 
     return;
 }
@@ -189,49 +210,45 @@ int tick_rmv(char *name)
 }
 
 /* dump one tick node information */
-static u16_t tknode_dump(struct tknode *node, char *buff, u16_t len)
+static int tknode_dump(struct tknode *node, arg_dstr_t ds)
 {
-    u16_t ret = 0;
-    
-    ret += snprintf(buff+ret, len-ret, "| %-15s | %-10u | %-15p | %-15p | %-15u |\r\n", 
+    arg_dstr_catf(ds, "| %-15s | %-10u | %-15p | %-15p | %-15u |\r\n", 
             node->name, node->ptimes, node->cb, node->udata, node->div);
 
-    return ret;
+    return 0;
 }
 
 #define TICK_SPLIT  " --------------------------------------------------"\
                     "---------------------------------- \r\n"
-static u16_t tick_list(struct tick *tk, char *buff, u16_t len)
+static int tick_list(struct tick *tk, arg_dstr_t ds)
 {
-    u16_t ret = 0;
     struct tknode *node = NULL;
     struct list_head *pos = NULL;
 
-    ret += snprintf(buff+ret, len-ret, "****** tknode list summary ******\r\n");
-    ret += snprintf(buff+ret, len-ret, TICK_SPLIT);
-    ret += snprintf(buff+ret, len-ret, "| %-15s | %-10s | %-15s | %-15s | %-15s |\r\n", 
-                                       "name", "ptimes", "cb", "udata", "div(ms)");
+    arg_dstr_catf(ds, "****** tknode list summary ******\r\n");
+    arg_dstr_catf(ds, TICK_SPLIT);
+    arg_dstr_catf(ds, "| %-15s | %-10s | %-15s | %-15s | %-15s |\r\n", \
+            "name", "ptimes", "cb", "udata", "div(ms)");
     list_for_each(pos, &tk->head)
     {
-        ret += snprintf(buff+ret, len-ret, TICK_SPLIT);
+        arg_dstr_catf(ds, TICK_SPLIT);
         node = list_entry(pos, struct tknode, node);
-        ret += tknode_dump(node, buff+ret, len-ret);
+        tknode_dump(node, ds);
     }
-    ret += snprintf(buff+ret, len-ret, TICK_SPLIT);
+    arg_dstr_catf(ds, TICK_SPLIT);
 
-    return ret;
+    return 0;
 }
 
-u16_t tick_dump(char *buff, u16_t len)
+int tick_dump(arg_dstr_t ds)
 {
-    u16_t ret = 0;
     struct tick *tk = &tick_obj;
 
-    ret += snprintf(buff+ret, len-ret, "/*** tick summary ***/\r\n");
-    ret += snprintf(buff+ret, len-ret, "ctimes  : %u\r\n", tk->ctimes);
-    ret += tick_list(tk, buff+ret, len-ret);
+    arg_dstr_catf(ds, "/*** tick summary ***/\r\n");
+    arg_dstr_catf(ds, "ctimes  : %u\r\n", tk->ctimes);
+    tick_list(tk, ds);
 
-    return ret;
+    return 0;
 }
 
 static void tknode_do(struct tknode *node, u32_t ctimes)

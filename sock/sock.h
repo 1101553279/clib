@@ -2,9 +2,10 @@
 #define __SOCK_H__
 #include "tcps.h"
 #include "btype.h"
+#include "argtable3.h"
 
 int sock_init(void);
 void sock_init_append(void);
 
-u16_t sock_tcps_dump(char *buff, u16_t len);
+int sock_tcps_dump(arg_dstr_t ds);
 #endif

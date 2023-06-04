@@ -34,3 +34,20 @@ int str_parse(char *str, char *argv[], const int nu)
 
 	return argc;
 }
+    
+int argtable_parse(int argc, char *argv[], void *argtable, struct arg_end *end_arg, arg_dstr_t ds, const char *cmd)
+{
+    int nerrors = 0;
+
+    if( 0 != arg_nullcheck(argtable))
+    {
+        arg_dstr_catf(ds, "%s: insufficient memory\r\n", cmd);
+        return -1;
+    }
+
+    nerrors = arg_parse(argc, argv, argtable);
+    if(nerrors > 0)
+        arg_print_errors_ds(ds, end_arg, cmd);
+
+    return nerrors;
+}

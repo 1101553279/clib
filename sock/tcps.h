@@ -23,5 +23,5 @@ int tcps_fds_hand(struct sock_tcps *t, struct pollfd *fds);
 void tcps_iterate(struct sock_tcps *t, tcps_iterate_t cb, void *data);
 void tcps_uninit(struct sock_tcps *t);
 void tcps_print(struct sock_tcps *t);
-u16_t tcps_dump(struct sock_tcps *t, char *buff, u16_t len);
+int tcps_dump(struct sock_tcps *t, arg_dstr_t ds);
 #endif

@@ -3,6 +3,7 @@
 
 #include "blist.h"
 #include "btype.h"
+#include "argtable3.h"
 
 struct cfg_proper{
     struct list_head node;
@@ -39,7 +40,7 @@ void cfg_proper_iterate(cfg_proper_cb_t cb, void *user);
 const char *cfg_read(const char *section, const char *key, int *ok);
 
 /* for debug */
-u16_t cfg_dump(char *buff, u16_t len);
+int cfg_dump(arg_dstr_t ds);
 void cfg_print(void);
 void cfg_section_print(struct cfg_section *sec);
 void cfg_proper_print(struct cfg_proper *pro);

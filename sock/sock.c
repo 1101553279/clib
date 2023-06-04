@@ -94,7 +94,7 @@ static void *sock_routine(void *arg)
     return NULL;
 }
 
-u16_t sock_tcps_dump(char *buff, u16_t len)
+int sock_tcps_dump(arg_dstr_t ds)
 {
-    return tcps_dump(&(sock_obj.tcp), buff, len);
+    return tcps_dump(&(sock_obj.tcp), ds);
 }

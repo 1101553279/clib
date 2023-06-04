@@ -3,6 +3,7 @@
 
 #include "btype.h"
 #include "sutil.h"
+#include "argtable3.h"
 
 /* client is managed by the AVL tree */
 struct sclient{
@@ -40,9 +41,9 @@ void sclient_uninit(struct sclient_mgr *m);
 void sclient_msg_print(struct sclient *c, u8_t *msg, size_t len);
 void sclient_del_print(struct sclient *c);
 void sclient_list_print(struct sclient_mgr *c);
-u16_t sclient_list(struct sclient_mgr *m, char *buff, int len);
-u16_t sclient_level_list(struct sclient_mgr *m, char *buff, int len);
-u16_t sclient_line_dump(struct sclient *c, char *buff, u16_t len);
+int sclient_list(struct sclient_mgr *m, arg_dstr_t ds);
+int sclient_level_list(struct sclient_mgr *m, arg_dstr_t ds);
+int sclient_line_dump(struct sclient *c, arg_dstr_t ds);
 void sclient_dump_cb(struct sclient *c, void *data);
 void sclient_tree_print(struct sclient_mgr *m);
 #endif

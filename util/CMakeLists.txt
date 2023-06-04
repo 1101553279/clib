@@ -1,6 +1,6 @@
 
 
-set(SOURCE_FILES util.c argtable3.c)
+set(SOURCE_FILES util.c)
 
 #message("SOURCE_FILES = ${SOURCE_FILES}")
 add_library(util SHARED ${SOURCE_FILES})

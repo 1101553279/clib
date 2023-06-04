@@ -2,6 +2,7 @@
 #define __PLOG_H__
 
 #include "btype.h"
+#include "argtable3.h"
 
 /* key list */
 #define PLOG_KEY    (0x1)
@@ -21,6 +22,6 @@ void plog_init_append(void);
 u8_t plog_key_is(u32_t mods);
 void plog_out(char *mod, const char *fmt, const char *func, int line, ...);
 void plog_uninit(void);
-u16_t plog_dump(char *buff, u16_t len);
+int plog_dump(arg_dstr_t ds);
 
 #endif

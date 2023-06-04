@@ -4,6 +4,7 @@
 #include <string.h>
 #include <time.h>
 #include "command.h"
+#include "util.h"
 
 struct tcps_fds_cb_t
 {
@@ -12,8 +13,10 @@ struct tcps_fds_cb_t
     nfds_t n;       /* number */
 };
 
-static int tcps_command(int argc, char *argv[], char *buff, int len, void *user);
+static int tcps_arg_cmdfn(int argc, char* argv[], arg_dstr_t ds);
 static void tcps_fds_cb(struct sclient *cur, void *data);
+
+struct sock_tcps *tcp = NULL;
 
 int tcps_init(struct sock_tcps *t, u16_t port)
 {
@@ -28,13 +31,14 @@ int tcps_init(struct sock_tcps *t, u16_t port)
     time(&c);
     strftime(t->itime, sizeof(t->itime), "%H:%M:%S", localtime(&c));
 
+    tcp = t;
+
     return 0;
 }
 
 int tcps_init_append(struct sock_tcps *t)
 {
-    cmd_add("tcps", "list tcps information\r\n","tcps [fd|port|client <list|close>]\r\n", 
-            tcps_command, t);
+    arg_cmd_register("tcps", tcps_arg_cmdfn, "manage tcps module");
 
     return 0;
 }
@@ -129,22 +133,20 @@ void tcps_print(struct sock_tcps *t)
     return;
 }
 
-u16_t tcps_dump(struct sock_tcps *t, char *buff, u16_t len)
+int tcps_dump(struct sock_tcps *t, arg_dstr_t ds)
 {
     u16_t ret = 0;
 
-    ret += snprintf(buff+ret, len-ret, "****** tcps summary ******\r\n");
-    ret += snprintf(buff+ret, len-ret, "srv fd    : %d\r\n", t->fd); 
-    ret += snprintf(buff+ret, len-ret, "srv port  : %u\r\n", t->port);
-    ret += snprintf(buff+ret, len-ret, "srv online: %s\r\n", t->itime);
-    ret += snprintf(buff+ret, len-ret, SOCK_SPLIT);
-    ret += snprintf(buff+ret, len-ret, "| %-15s | %-15s | %-15s | %-5s | %-15s | %-5s | %-10s |\r\n", 
-                                       "left", "current", "right", "fd", "ip", "port", "link time");
+    arg_dstr_catf(ds, "****** tcps summary ******\r\n");
+    arg_dstr_catf(ds, "srv fd    : %d\r\n", t->fd); 
+    arg_dstr_catf(ds, "srv port  : %u\r\n", t->port);
+    arg_dstr_catf(ds, "srv online: %s\r\n", t->itime);
+    arg_dstr_catf(ds, SOCK_SPLIT);
+    arg_dstr_catf(ds, "| %-15s | %-15s | %-15s | %-5s | %-15s | %-5s | %-10s |\r\n", 
+                       "left", "current", "right", "fd", "ip", "port", "link time");
 
-    struct sclient_dump_cb_t data = {buff+ret, len-ret, 0};
-    sclient_iterate(&t->cm, sclient_dump_cb, &data);
-    ret += data.n;
-    ret += snprintf(buff+ret, len-ret, SOCK_SPLIT);
+    sclient_iterate(&t->cm, sclient_dump_cb, ds);
+    arg_dstr_catf(ds, SOCK_SPLIT);
 
     return ret;
 }
@@ -159,56 +161,74 @@ static void tcps_fds_cb(struct sclient *cur, void *data)
         f->n++;
     }
 }
-static int tcps_command(int argc, char *argv[], char *buff, int len, void *user)
+/*
+    cmd_add("tcps", "list tcps information\r\n","tcps [fd|port|client <list|close>]\r\n", 
+            tcps_command, t);
+    tcps                    - tcps usage
+    tcps -d|dump            - dump module information
+    tcps -c uninit          - uninit 
+    tcps -c list
+    tcps -c level
+*/
+static int tcps_arg_cmdfn(int argc, char* argv[], arg_dstr_t ds)
 {
-    u16_t ret = 0;
-    struct sock_tcps *tcp = (struct sock_tcps *)user;
-    u8_t mark = 1;
+    struct arg_lit *arg_d;
+    struct arg_str *arg_c;
+    struct arg_end *end_arg;
     int i = 0;
+    void *argtable[] = 
+    {
+        arg_d       = arg_lit0("d", "dump",                 "dump information about tcps module"),
+        arg_c       = arg_str0("c", "client", "[action]",  "what action you will do for client"),
+                      arg_rem(" action", "action list"),
+                      arg_rem("     list", "print client in list view"),
+                      arg_rem("     level", "print client in level view"),
+                      arg_rem("     uninit", "uninit all clients"),
+        end_arg     = arg_end(5),
+    };
+    int nerrors;
+    const char *name = argv[0];
+    arg_cmd_info_t *info;
+    int ret = 0;
+    const char *action;
 
-    if(2 == argc) 
+    ret = argtable_parse(argc, argv, argtable, end_arg, ds, name);
+    if(0 != ret)
+        goto to_parse;
+
+    if(arg_d->count > 0)
     {
-        if(0 == strcmp(argv[1], "fd"))
-            ret += snprintf(buff+ret, len-ret, "tcps srv fd: %d\r\n", tcp->fd);
-        else if(0 == strcmp(argv[1], "port"))
-            ret += snprintf(buff+ret, len-ret, "tcps srv port: %u\r\n", tcp->port);
-        else
-            mark = 0;
+        arg_dstr_catf(ds, "tcps srv fd  : %d\r\n", tcp->fd);
+        arg_dstr_catf(ds, "tcps srv port: %u\r\n", tcp->port);
+        goto to_d;
     }
-    else if(3 == argc)
+
+    if(arg_c->count > 0)
     {
-        if(0 == strcmp(argv[1], "client"))
+        action = arg_c->sval[0];
+        if(0 == strcmp("uninit", action))
         {
-            if(0 == strcmp(argv[2], "list"))
-                ret += sclient_list(&tcp->cm, buff+ret, len-ret);
-            else if(0 == strcmp(argv[2], "uninit"))
-            {
                 sclient_uninit(&tcp->cm);
-                ret += snprintf(buff+ret, len-ret, "****** tcps client uninit ******\r\n");
-                ret += snprintf(buff+ret, len-ret, "all clients are uninited\r\n");
-            }
-            else
-                mark = 0;
+                arg_dstr_catf(ds, "****** tcps client uninit ******\r\n");
+                arg_dstr_catf(ds, "all clients are uninited\r\n");
         }
+        else if(0 == strcmp("list", action))
+            sclient_list(&tcp->cm, ds);
+        else if(0 == strcmp("level", action))
+            sclient_level_list(&tcp->cm, ds);
         else
-            mark = 0;
-    }
-    else if(4 == argc)
-    {
-        if(0 == strcmp(argv[1], "client") && 0 == strcmp(argv[2], "level") && 0 == strcmp(argv[3], "list"))
-            ret += sclient_level_list(&tcp->cm, buff+ret, len-ret);
-        else
-            mark = 0;
-    }
-    else
-        mark = 0;
-
-    if(0 == mark)
-    {
-        for(i=0; i < argc; i++)
-            ret += snprintf(buff+ret, len-ret, "%s ", argv[i]);
-        ret += snprintf(buff+ret, len-ret, " <- no this cmd\r\n");
+            arg_dstr_catf(ds, "<%s> is not supported!\r\n", action);
+        goto to_c;
     }
 
-    return ret;
+    /* help usage for it's self */
+    arg_dstr_catf(ds, "usage: %s", name);
+    arg_print_syntaxv_ds(ds, argtable, "\r\n");
+    arg_print_glossary_ds(ds, argtable, "%-20s %s\r\n");
+
+to_c:
+to_d:
+to_parse:
+    arg_freetable(argtable, ARY_SIZE(argtable));
+    return 0;
 }

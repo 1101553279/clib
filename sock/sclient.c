@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include "sutil.h"
+#include "argtable3.h"
 
 static void right_rotate(struct sclient *fn, struct sclient **root);
 static void left_right_rotate(struct sclient *fn, struct sclient **root);
@@ -440,53 +441,41 @@ void sclient_list_print(struct sclient_mgr *m)
     return;
 }
 
-u16_t sclient_list(struct sclient_mgr *m, char *buff, int len)
+int sclient_list(struct sclient_mgr *m, arg_dstr_t ds)
 {
     struct sclient *c = m->root;
-    u16_t ret = 0;
 
-    ret += snprintf(buff+ret, len-ret, "****** tcps client list summary ******\r\n");
+    arg_dstr_catf(ds, "****** tcps client list summary ******\r\n");
 
-    struct sclient_dump_cb_t data = {buff+ret, len-ret, 0};
 
-    sclient_iterate(m, sclient_dump_cb, &data);
+    sclient_iterate(m, sclient_dump_cb, ds);
 
-    ret += data.n;
-
-    return ret;
+    return 0;
 }
 
-u16_t sclient_level_list(struct sclient_mgr *m, char *buff, int len)
+int sclient_level_list(struct sclient_mgr *m, arg_dstr_t ds)
 {
-    u16_t ret = 0;
+    arg_dstr_catf(ds, "****** tcps client level list summary ******\r\n");
 
-    ret += snprintf(buff+ret, len-ret, "****** tcps client level list summary ******\r\n");
+    sclient_level_iterate(m, sclient_dump_cb, ds);
 
-    struct sclient_dump_cb_t data = {buff+ret, len-ret, 0};
-
-    sclient_level_iterate(m, sclient_dump_cb, &data);
-
-    ret += data.n;
-
-    return ret;
+    return 0;
 
 }
-u16_t sclient_line_dump(struct sclient *c, char *buff, u16_t len)
+int sclient_line_dump(struct sclient *c, arg_dstr_t ds)
 {
-    u16_t ret = 0;
-    
-    ret += snprintf(buff+ret, len-ret, "| %-15p | %-15p | %-15p | %-5d | %-15s | %-5u | %-10s |\r\n", 
+    arg_dstr_catf(ds, "| %-15p | %-15p | %-15p | %-5d | %-15s | %-5u | %-10s |\r\n", 
             c->l, c, c->r, c->fd, c->ip, c->port, c->ltime);
 
 
-    return ret;
+    return 0;
 }
 void sclient_dump_cb(struct sclient *c, void *data)
 {
-    struct sclient_dump_cb_t *f = (struct sclient_dump_cb_t *)data;
+    arg_dstr_t ds = (arg_dstr_t)data;
 
-    f->n += snprintf(f->buff+f->n, f->len-f->n, SOCK_SPLIT);
-    f->n += sclient_line_dump(c, f->buff+f->n, f->len-f->n);
+    arg_dstr_catf(ds, SOCK_SPLIT);
+    sclient_line_dump(c, ds);
 
     return;
 }

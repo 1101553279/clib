@@ -7,6 +7,7 @@
 #include "blist.h"
 #include "log.h"
 #include "color.h"
+#include "util.h"
 
 #define GET_MAX(x, y)   (((x) > (y)) ? (x) : (y))
 #define GET_MIN(x, y)   (((x) < (y)) ? (x) : (y))
@@ -18,4 +19,7 @@
 int str_parse(char *str, char *argv[], const int nu);
 // for debug
 u16_t data_tostr(char *buff, u16_t len, u8_t *data, u8_t dlen);
+
+int argtable_parse(int argc, char *argv[], void *argtable, struct arg_end *end_arg, arg_dstr_t ds, const char *cmd);
+
 #endif

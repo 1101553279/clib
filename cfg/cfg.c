@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include "plog.h"
 #include "log.h"
+#include "util.h"
 
 /*******************************************************************
 example: cfg.ini 
@@ -57,7 +58,64 @@ static int cfg_section_add(struct cfg_mgr *mgr, const char *section,
         const char *key, const char *value);
 static int cfg_ini_callback(void *user, const char *section, 
         const char *key, const char *value);
-static int cfg_command(int argc, char *argv[], char *buff, int len, void *user);
+/***************************************************
+    cfg [-h]
+    cfg -d
+    cfg -r
+***************************************************/
+static int cfg_arg_cmdfn(int argc, char *argv[], arg_dstr_t ds)
+{
+    struct cfg_mgr *c = &cfg_obj;
+    struct arg_lit *arg_h;
+    struct arg_lit *arg_d;
+    struct arg_lit *arg_r;
+    struct arg_end *end_arg;
+    void *argtable[] = 
+    {
+        arg_h           = arg_lit0("h", "help",   "help information about cfg command"),
+        arg_d           = arg_lit0("d", "dump",   "dump information about cfg module"),
+        arg_r           = arg_lit0("r", "reload", "reload(reparse) configure file"),
+        end_arg         = arg_end(5),
+    };
+    int ret;
+
+    ret = argtable_parse(argc, argv, argtable, end_arg, ds, argv[0]);
+    if(0 != ret)
+        goto to_parse;
+
+    if(arg_h->count > 0)
+    {
+        arg_dstr_catf(ds, "usage: %s", argv[0]);
+        arg_print_syntaxv_ds(ds, argtable, "\r\n");
+        goto to_h;
+    }
+
+    if(arg_d->count > 0)
+    {
+        cfg_dump(ds);
+        goto to_d;
+    }
+
+    if(arg_r->count > 0)
+    {
+        ini_parse(CFG_NAME, cfg_ini_callback, c);
+        arg_dstr_catf(ds, "cfg reload %s - success!\r\n", CFG_NAME);
+        goto to_r;
+    }
+    
+    /* help usage for it's self */
+    arg_dstr_catf(ds, "usage: %s", argv[0]);
+    arg_print_syntaxv_ds(ds, argtable, "\r\n");
+    arg_print_glossary_ds(ds, argtable, "%-20s %s\r\n");
+
+to_r:
+to_d:
+to_h:
+to_parse:
+    arg_freetable(argtable, ARY_SIZE(argtable));
+    return 0;
+
+}
 
 /****************************************************************************** 
  * brief    : init cfg module
@@ -85,8 +143,7 @@ void cfg_init(void)
  ******************************************************************************/
 void cfg_init_append(void)
 {
-    /* add plog command */
-    cmd_add("cfg", "cfg information\r\n", "cfg <reload|dump>\r\n", cfg_command, NULL);
+    arg_cmd_register("cfg", cfg_arg_cmdfn, "manage cfg module");
 
     return;
 }
@@ -371,25 +428,24 @@ output example:
 ------------------------------------------------------------------
  2 |  tcps_port:3000       |           :           |       
 *******************************************************************/
-u16_t cfg_dump(char *buff, u16_t len)
+int cfg_dump(arg_dstr_t ds)
 {
     struct cfg_mgr *c = &cfg_obj;
     struct cfg_section *sec;
     struct cfg_proper *pro;
-    u16_t ret = 0;
     int max_count = 0;
     int i = 0;
     int j = 0;
 
     /* section title */
-    ret += snprintf(buff+ret, len-ret, "/*** cfg summary ***/\r\n");
-    ret += snprintf(buff+ret, len-ret, "%3s ", " ");
+    arg_dstr_catf(ds, "/*** cfg summary ***/\r\n");
+    arg_dstr_catf(ds, "%3s ", " ");
     for(i=0; i < c->count; i++)
     {
         sec = cfg_section_at(c, i);
         if(NULL != sec)
         {
-            ret += snprintf(buff+ret, len-ret, "%-24s", sec->section);
+            arg_dstr_catf(ds, "%-24s", sec->section);
             if(sec->count > max_count)
                 max_count = sec->count;
         }
@@ -398,21 +454,21 @@ u16_t cfg_dump(char *buff, u16_t len)
     /* property key */
     for(i=0; i < max_count; i++)
     {
-        ret += snprintf(buff+ret, len-ret, "\r\n");
-        ret += snprintf(buff+ret, len-ret, CFG_SPLIT);
-        ret += snprintf(buff+ret, len-ret, "%2d ", i);
+        arg_dstr_catf(ds, "\r\n");
+        arg_dstr_catf(ds, CFG_SPLIT);
+        arg_dstr_catf(ds, "%2d ", i);
         for(j=0; j < c->count; j++)
         {
             pro = cfg_at(c, j, i);
             if(NULL != pro)
-                ret += snprintf(buff+ret, len-ret, "| %10s:%-10s ", pro->key, pro->value);
+                arg_dstr_catf(ds, "| %10s:%-10s ", pro->key, pro->value);
             else
-                ret += snprintf(buff+ret, len-ret, "| %10s:%10s ", " ", " ");
+                arg_dstr_catf(ds, "| %10s:%10s ", " ", " ");
         }
     }
-    ret += snprintf(buff+ret, len-ret, "\r\n");
+    arg_dstr_catf(ds, "\r\n");
 
-    return ret;
+    return 0;
 }
 
 /* print all configure information */
@@ -420,9 +476,10 @@ void cfg_print(void)
 {
     u16_t ret = 0;
     char buff[1024];
+    arg_dstr_t ds = arg_dstr_create();
     
-    ret += cfg_dump(buff, sizeof(buff));
-    printf("%s", buff);
+    cfg_dump(ds);
+    printf("%s", arg_dstr_cstr(ds));
 
     return;
 }
@@ -680,44 +737,3 @@ static int cfg_ini_callback(void *user, const char *section,
     return cfg_section_add(c, section, key, value);
 }
 
-/****************************************************************************** 
- * brief    : configure command
- * Param    : argc      argument count
- * Param    : argv      argument vector
- * Param    : buff      
- * Param    : len
- * Return   : 
- * Note     :                                                                   
- ******************************************************************************/
-static int cfg_command(int argc, char *argv[], char *buff, int len, void *user)
-{
-    struct cfg_mgr *c = &cfg_obj;
-    int ret = 0;
-    char *cmd;
-    int mark = 1;
-    int i = 0;
-    
-    if(2 == argc)
-    {
-        cmd = argv[1];
-        if(0 == strcmp("reload", cmd))
-        {
-            ini_parse(CFG_NAME, cfg_ini_callback, c);
-            ret += snprintf(buff+ret, len-ret, "cfg reload %s - success!\r\n", 
-                    CFG_NAME);
-        }
-        else
-            mark = 0;
-    }
-    else
-        mark = 0;
-
-    if(0 == mark)
-    {
-        for(i=0; i < argc; i++)
-            ret += snprintf(buff+ret, len-ret, "%s ", argv[i]);
-        ret += snprintf(buff+ret, len-ret, " <- no this cmd\r\n");
-    }
-
-    return ret;
-}

@@ -12,6 +12,8 @@
 #include "pthread.h"
 #include "log.h"
 #include "cfg.h"
+#include "argtable3.h"
+#include "util.h"
 
 #define PBUF_SIZE       1024
 #define PMSG_MIN_SIZE   2       /* minimum size */
@@ -46,8 +48,9 @@ struct plog{
 };
 
 static struct plog plog_obj;
-/* plog's command */
-static int plog_command(int argc, char *argv[], char *buff, int len, void *user);
+
+
+static int plog_arg_cmdfn(int argc, char *argv[], arg_dstr_t ds);
 
 static void plog_key_on(u32_t mods);
 static void plog_key_off(u32_t mods);
@@ -108,9 +111,7 @@ void plog_init(void)
 /* append plog init */
 void plog_init_append(void)
 {
-    /* add plog command */
-    cmd_add("plog", "plog execution procedure\r\n","plog [run/cmd] on/off\r\n", 
-            plog_command, NULL);
+    arg_cmd_register("plog", plog_arg_cmdfn, "manage plog module");
 //    tick_add("plog", plog_tick, p, 10000);
 
     return;
@@ -168,120 +169,118 @@ void plog_uninit(void)
     return;
 }
 
-u16_t plog_con_dump(struct plog_con *c, char *buff, u16_t len)
+int plog_con_dump(struct plog_con *c, arg_dstr_t ds)
 {
-    u16_t ret = 0;
+    arg_dstr_catf(ds, "connect ufd  : %d\r\n", c->ufd);
+    arg_dstr_catf(ds, "connect addr : %s\r\n", inet_ntoa(c->caddr.sin_addr));
+    arg_dstr_catf(ds, "connect port : %u\r\n", ntohs(c->caddr.sin_port));
 
-    ret += snprintf(buff+ret, len-ret, "connect ufd  : %d\r\n", c->ufd);
-    ret += snprintf(buff+ret, len-ret, "connect addr : %s\r\n", 
-                                        inet_ntoa(c->caddr.sin_addr));
-    ret += snprintf(buff+ret, len-ret, "connect port : %u\r\n",
-                                        ntohs(c->caddr.sin_port));
-
-    return ret;
+    return 0;
 }
 
-u16_t plog_que_dump(struct plog_que *q, char *buff, u16_t len)
+int plog_que_dump(struct plog_que *q, arg_dstr_t ds)
 {
-    u16_t ret = 0;
+    arg_dstr_catf(ds, "queue front     : %d\r\n", q->front);
+    arg_dstr_catf(ds, "queue rear      : %d\r\n", q->rear);
+    arg_dstr_catf(ds, "queue pmsg      : %p\r\n", q->pmsg);
+    arg_dstr_catf(ds, "queue size      : %u\r\n", q->size);
+    arg_dstr_catf(ds, "queue len       : %d\r\n", ((q->front-q->rear)+q->size)%q->size);
 
-    ret += snprintf(buff+ret, len-ret, "queue front     : %d\r\n", q->front);
-    ret += snprintf(buff+ret, len-ret, "queue rear      : %d\r\n", q->rear);
-    ret += snprintf(buff+ret, len-ret, "queue pmsg      : %p\r\n", q->pmsg);
-    ret += snprintf(buff+ret, len-ret, "queue size      : %u\r\n", q->size);
-    ret += snprintf(buff+ret, len-ret, "queue len       : %d\r\n", 
-            ((q->front-q->rear)+q->size)%q->size);
-
-    return ret;
+    return 0;
 }
 
 /* dump plog module information to buffer */
-u16_t plog_dump(char *buff, u16_t len)
+int plog_dump(arg_dstr_t ds)
 {
     struct plog *p = &plog_obj;
-    u16_t ret = 0;
     
-    ret += snprintf(buff+ret, len-ret, "/*** plog summary ***/\n");
-    ret += snprintf(buff+ret, len-ret, "thread id   : %#lx\r\n", p->tid);
-    ret += snprintf(buff+ret, len-ret, "plog key    : %#x\n", p->key);
-    ret += snprintf(buff+ret, len-ret, "-------------------------\r\n");
-    ret += plog_con_dump(&p->con, buff+ret, len-ret);
-    ret += snprintf(buff+ret, len-ret, "-------------------------\r\n");
-    ret += plog_que_dump(&p->que, buff+ret, len-ret);
+    arg_dstr_catf(ds, "/*** plog summary ***/\n");
+    arg_dstr_catf(ds, "thread id   : %#lx\r\n", p->tid);
+    arg_dstr_catf(ds, "plog key    : %#x\n", p->key);
+    arg_dstr_catf(ds, "-------------------------\r\n");
+    plog_con_dump(&p->con, ds);
+    arg_dstr_catf(ds, "-------------------------\r\n");
+    plog_que_dump(&p->que, ds);
 
-    return ret;
+    return 0;
 }
 
-/****** static function list ******/
-static int plog_command(int argc, char *argv[], char *buff, int len, void *user)
+/************************************************************
+ plog [-h]
+ plog -d
+ plog -m module --on
+ plog -m module --off
+
+*************************************************************/
+static int plog_arg_cmdfn(int argc, char *argv[], arg_dstr_t ds)
 {
-    int ret = 0;
+    struct plog *p = &plog_obj;
+    struct arg_lit *arg_d;
+    struct arg_str *arg_m;
+    struct arg_lit *arg_on;
+    struct arg_lit *arg_off;
+    struct arg_end *end_arg;
     int i = 0;
-    char mbuff[100];    /* mod buffer */
-    int mret = 0;   /* mod return length */
     u32_t key = 0;
-    char *arg;
-    struct sockaddr_in caddr;
-    socklen_t clen;
-#if 0
-    for(i=0; i < argc; i++)
-        printf("%s ", argv[i]);
-    printf("\n");
-#endif
-    if(argc < 2)
+    const char *module;
+    char mbuff[100];    /* mod buffer */
+    int mret = 0;
+    void *argtable[] = 
     {
-        ret += snprintf(buff+ret, len-ret, "parameter < 2\n");
-        goto err_argc;
+        arg_d           = arg_lit0("d", "dump",     "dump information about plog"),
+        arg_m           = arg_str0("m",  "module",  "<module>", "which module you will select"),
+        arg_on          = arg_lit0(NULL, "on",      "start plog"),
+        arg_off         = arg_lit0(NULL, "off",     "stop plog"),
+        end_arg         = arg_end(5),
+    };
+    int ret;
+
+    ret = argtable_parse(argc, argv, argtable, end_arg, ds, argv[0]);
+    if(0 != ret)
+        goto to_parse;
+
+    if(arg_d->count > 0)
+    {
+        plog_dump(ds);
+        goto to_d;
     }
 
-    if(0!=strcmp("on", argv[argc-1]) && 0!=strcmp("off", argv[argc-1]))
+    if(arg_m->count > 0)
     {
-        ret += snprintf(buff+ret, len-ret, "cmd error: the lastest parameter must be on or off\n");
-        goto err_key;
-    }
-
-    memset(mbuff, 0, sizeof(mbuff));
-    /* match mods */
-    for(i=1; i < argc-1; i++)
-    {
-        arg = argv[i];
-        if(0 == strcmp("run", arg))
-            key |= PLOG_RUN;
-        else if(0 == strcmp("cmd", arg))
-            key |= PLOG_CMD;
-        else if(0 == strcmp("cfg", arg))
-            key |= PLOG_CFG;
-        else
+        for(i=0; i < arg_m->count; i++)
         {
-            ret += snprintf(buff+ret, len-ret, "%s %s %s <- no this mod\n", argv[0], mbuff, arg);
-            goto err_mod;  /* match fail, parameter error */
+            module = arg_m->sval[i];
+            if(0 == strcmp("run", module))
+                key |= PLOG_RUN;
+            else if(0 == strcmp("cmd", module))
+                key |= PLOG_CMD;
+            else if(0 == strcmp("cfg", module))
+                key |= PLOG_CFG;
+            else
+                continue;
+            mret += snprintf(mbuff+mret, sizeof(mbuff)-mret, "%s ", module);
         }
-        mret += snprintf(mbuff+mret, sizeof(mbuff)-mret, "%s ", arg);
-    }
-
-    if(0 == strcmp("on", argv[i]))
-    {
-        cmd_client(&caddr, &clen);  /* get client address information */
-        plog_con_on(cmd_srv_fd(), &caddr, clen);
-        if(0 != key)
+        if(arg_on->count > 0)
+        {
             plog_key_on(key);
-        ret += snprintf(buff+ret, len-ret, "/*** plog %s on ***/\n", 0==strlen(mbuff)? "key" :mbuff);
+            arg_dstr_catf(ds, "/*** plog %s on ***/\n", mbuff);
+        }
     }
-    else
-    {
-        if(0 == key)
-            plog_con_off();
-        else
-            plog_key_off(key);
-        ret += snprintf(buff+ret, len-ret, "/*** plog %s off ***/\n", 0==strlen(mbuff) ?"all" :mbuff);
-    }
+    
 
-    ret += snprintf(buff+ret, len-ret, "\n");
-err_mod:
-err_key:
-err_argc: 
-    return ret;
+    /* help usage for it's self */
+    arg_dstr_catf(ds, "usage: %s", argv[0]);
+    arg_print_syntaxv_ds(ds, argtable, "\r\n");
+    arg_print_glossary_ds(ds, argtable, "%-25s %s\r\n");
+
+
+to_l:
+to_d:
+to_parse:
+    arg_freetable(argtable, ARY_SIZE(argtable));
+    return 0;
 }
+
 /* open the mods's key */
 static void plog_key_on(u32_t mods)
 {
