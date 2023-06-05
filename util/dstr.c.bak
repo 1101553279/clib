@@ -1,0 +1,415 @@
+#include "dstr.h"
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdarg.h>
+#include <ctype.h>
+#include <assert.h>
+#include <limits.h>
+
+#define	xmalloc     malloc
+#define	xcalloc     calloc
+#define	xrealloc    realloc
+#define	xfree       free
+
+#define DSTR_STATIC ((dstr_freefn*)0)
+#define DSTR_VOLATILE ((dstr_freefn*)1)
+#define DSTR_DYNAMIC ((dstr_freefn*)3)
+
+#define START_VSNBUFF 16
+
+/*
+ * Concatenate contents of src[] string onto *pdest[] string.
+ * The *pdest pointer is altered to point to the end of the
+ * target string and *pndest is decremented by the same number
+ * of chars.
+ * Does not append more than *pndest chars into *pdest[]
+ * so as to prevent buffer overruns.
+ * Its something like strncat() but more efficient for repeated
+ * calls on the same destination string.
+ * Example of use:
+ *   char dest[30] = "good"
+ *   size_t ndest = sizeof(dest);
+ *   char *pdest = dest;
+ *   arg_char(&pdest,"bye ",&ndest);
+ *   arg_char(&pdest,"cruel ",&ndest);
+ *   arg_char(&pdest,"world!",&ndest);
+ * Results in:
+ *   dest[] == "goodbye cruel world!"
+ *   ndest  == 10
+ */
+static void arg_cat(char** pdest, const char* src, size_t* pndest) {
+    char* dest = *pdest;
+    char* end = dest + *pndest;
+
+    /*locate null terminator of dest string */
+    while (dest < end-1 && *dest != 0)
+        dest++;
+
+    /* concat src string to dest string */
+    while (dest < end-1 && *src != 0)
+        *dest++ = *src++;
+
+    /* null terminate dest string */
+    *dest = 0;
+
+    /* update *pdest and *pndest */
+    *pndest = (size_t)(end - dest);
+    *pdest = dest;
+}
+
+
+
+/**
+ * Print a piece of text formatted, which means in a column with a
+ * left and a right margin. The lines are wrapped at whitspaces next
+ * to right margin. The function does not indent the first line, but
+ * only the following ones.
+ *
+ * See description of dstr_print_formatted below.
+ */
+static void dstr_print_formatted_ds(dstr_t ds, const unsigned lmargin, const unsigned rmargin, const char* text) {
+    const unsigned int textlen = (unsigned int)strlen(text);
+    unsigned int line_start = 0;
+    unsigned int line_end = textlen;
+    const unsigned int colwidth = (rmargin - lmargin) + 1;
+
+    assert(strlen(text) < UINT_MAX);
+
+    /* Someone doesn't like us... */
+    if (line_end < line_start) {
+        dstr_catf(ds, "%s\n", text);
+    }
+
+    while (line_end > line_start) {
+        /* Eat leading white spaces. This is essential because while
+           wrapping lines, there will often be a whitespace at beginning
+           of line. Preserve newlines */
+        while (isspace((int)(*(text + line_start))) && *(text + line_start) != '\n') {
+            line_start++;
+        }
+
+        /* Find last whitespace, that fits into line */
+        if (line_end - line_start > colwidth) {
+            line_end = line_start + colwidth;
+
+            while ((line_end > line_start) && !isspace((int)(*(text + line_end)))) {
+                line_end--;
+            }
+
+            /* If no whitespace could be found, eg. the text is one long word, break the word */
+            if (line_end == line_start) {
+                /* Set line_end to previous value */
+                line_end = line_start + colwidth;
+            } else {
+                /* Consume trailing spaces, except newlines */
+                while ((line_end > line_start) && isspace((int)(*(text + line_end))) && *(text + line_start) != '\n') {
+                    line_end--;
+                }
+
+                /* Restore the last non-space character */
+                line_end++;
+            }
+        }
+
+        /* Output line of text */
+        while (line_start < line_end) {
+            char c = *(text + line_start);
+
+            /* If character is newline stop printing, skip this character, as a newline will be printed below. */
+            if (c == '\n') {
+                line_start++;
+                break;
+            }
+
+            dstr_catc(ds, c);
+            line_start++;
+        }
+        dstr_cat(ds, "\n");
+
+        /* Initialize another line */
+        if (line_end < textlen) {
+            unsigned i;
+
+            for (i = 0; i < lmargin; i++) {
+                dstr_cat(ds, " ");
+            }
+
+            line_end = textlen;
+        }
+    } /* lines of text */
+}
+
+/**
+ * Print a piece of text formatted, which means in a column with a
+ * left and a right margin. The lines are wrapped at whitspaces next
+ * to right margin. The function does not indent the first line, but
+ * only the following ones.
+ *
+ * Example:
+ * dstr_print_formatted( fp, 0, 5, "Some text that doesn't fit." )
+ * will result in the following output:
+ *
+ * Some
+ * text
+ * that
+ * doesn'
+ * t fit.
+ *
+ * Too long lines will be wrapped in the middle of a word.
+ *
+ * dstr_print_formatted( fp, 2, 7, "Some text that doesn't fit." )
+ * will result in the following output:
+ *
+ * Some
+ *   text
+ *   that
+ *   doesn'
+ *   t fit.
+ *
+ * As you see, the first line is not indented. This enables output of
+ * lines, which start in a line where output already happened.
+ *
+ * Author: Uli Fouquet
+ */
+void dstr_print_formatted(FILE* fp, const unsigned lmargin, const unsigned rmargin, const char* text) {
+    dstr_t ds = dstr_create();
+    dstr_print_formatted_ds(ds, lmargin, rmargin, text);
+    fputs(dstr_cstr(ds), fp);
+    dstr_destroy(ds);
+}
+
+
+
+static void setup_append_buf(dstr_t res, int newSpace);
+
+dstr_t dstr_create(void) {
+    _internal_dstr_t* h = (_internal_dstr_t*)xmalloc(sizeof(_internal_dstr_t));
+    memset(h, 0, sizeof(_internal_dstr_t));
+    h->sbuf[0] = 0;
+    h->data = h->sbuf;
+    h->free_proc = DSTR_STATIC;
+    return h;
+}
+
+void dstr_destroy(dstr_t ds) {
+    if (ds == NULL)
+        return;
+
+    dstr_reset(ds);
+    xfree(ds);
+    return;
+}
+
+void dstr_set(dstr_t ds, char* str, dstr_freefn* free_proc) {
+    int length;
+    register dstr_freefn* old_free_proc = ds->free_proc;
+    char* old_result = ds->data;
+
+    if (str == NULL) {
+        ds->sbuf[0] = 0;
+        ds->data = ds->sbuf;
+        ds->free_proc = DSTR_STATIC;
+    } else if (free_proc == DSTR_VOLATILE) {
+        length = (int)strlen(str);
+        if (length > DSTR_SIZE) {
+            ds->data = (char*)xmalloc((unsigned)length + 1);
+            ds->free_proc = DSTR_DYNAMIC;
+        } else {
+            ds->data = ds->sbuf;
+            ds->free_proc = DSTR_STATIC;
+        }
+        strcpy(ds->data, str);
+    } else {
+        ds->data = str;
+        ds->free_proc = free_proc;
+    }
+
+    /*
+     * If the old result was dynamically-allocated, free it up. Do it here,
+     * rather than at the beginning, in case the new result value was part of
+     * the old result value.
+     */
+
+    if ((old_free_proc != 0) && (old_result != ds->data)) {
+        if (old_free_proc == DSTR_DYNAMIC) {
+            xfree(old_result);
+        } else {
+            (*old_free_proc)(old_result);
+        }
+    }
+
+    if ((ds->append_data != NULL) && (ds->append_data_size > 0)) {
+        xfree(ds->append_data);
+        ds->append_data = NULL;
+        ds->append_data_size = 0;
+    }
+}
+
+char* dstr_cstr(dstr_t ds) /* Interpreter whose result to return. */
+{
+    return ds->data;
+}
+
+void dstr_cat(dstr_t ds, const char* str) {
+    setup_append_buf(ds, (int)strlen(str) + 1);
+    memcpy(ds->data + strlen(ds->data), str, strlen(str));
+}
+
+void dstr_catc(dstr_t ds, char c) {
+    setup_append_buf(ds, 2);
+    memcpy(ds->data + strlen(ds->data), &c, 1);
+}
+
+/*
+ * The logic of the `dstr_catf` function is adapted from the `bformat`
+ * function in The Better String Library by Paul Hsieh. Here is the copyright
+ * notice from the library:
+ *
+ * Copyright (c) 2014, Paul Hsieh
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * * Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ *
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ *
+ * * Neither the name of bstrlib nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+void dstr_catf(dstr_t ds, const char* fmt, ...) {
+    va_list arglist;
+    char* buff;
+    int n, r;
+    size_t slen;
+
+    if (fmt == NULL)
+        return;
+
+    /* Since the length is not determinable beforehand, a search is
+       performed using the truncating "vsnprintf" call (to avoid buffer
+       overflows) on increasing potential sizes for the output result. */
+
+    if ((n = (int)(2 * strlen(fmt))) < START_VSNBUFF)
+        n = START_VSNBUFF;
+
+    buff = (char*)xmalloc((size_t)(n + 2));
+    memset(buff, 0, (size_t)(n + 2));
+
+    for (;;) {
+        va_start(arglist, fmt);
+        r = vsnprintf(buff, (size_t)(n + 1), fmt, arglist);
+        va_end(arglist);
+
+        slen = strlen(buff);
+        if (slen < (size_t)n)
+            break;
+
+        if (r > n)
+            n = r;
+        else
+            n += n;
+
+        xfree(buff);
+        buff = (char*)xmalloc((size_t)(n + 2));
+        memset(buff, 0, (size_t)(n + 2));
+    }
+
+    dstr_cat(ds, buff);
+    xfree(buff);
+}
+
+static void setup_append_buf(dstr_t ds, int new_space) {
+    int total_space;
+
+    /*
+     * Make the append buffer larger, if that's necessary, then copy the
+     * data into the append buffer and make the append buffer the official
+     * data.
+     */
+    if (ds->data != ds->append_data) {
+        /*
+         * If the buffer is too big, then free it up so we go back to a
+         * smaller buffer. This avoids tying up memory forever after a large
+         * operation.
+         */
+        if (ds->append_data_size > 500) {
+            xfree(ds->append_data);
+            ds->append_data = NULL;
+            ds->append_data_size = 0;
+        }
+        ds->append_used = (int)strlen(ds->data);
+    } else if (ds->data[ds->append_used] != 0) {
+        /*
+         * Most likely someone has modified a result created by
+         * dstr_cat et al. so that it has a different size. Just
+         * recompute the size.
+         */
+        ds->append_used = (int)strlen(ds->data);
+    }
+
+    total_space = new_space + ds->append_used;
+    if (total_space >= ds->append_data_size) {
+        char* newbuf;
+
+        if (total_space < 100) {
+            total_space = 200;
+        } else {
+            total_space *= 2;
+        }
+        newbuf = (char*)xmalloc((unsigned)total_space);
+        memset(newbuf, 0, (size_t)total_space);
+        strcpy(newbuf, ds->data);
+        if (ds->append_data != NULL) {
+            xfree(ds->append_data);
+        }
+        ds->append_data = newbuf;
+        ds->append_data_size = total_space;
+    } else if (ds->data != ds->append_data) {
+        strcpy(ds->append_data, ds->data);
+    }
+
+    dstr_free(ds);
+    ds->data = ds->append_data;
+}
+
+void dstr_free(dstr_t ds) {
+    if (ds->free_proc != NULL) {
+        if (ds->free_proc == DSTR_DYNAMIC) {
+            xfree(ds->data);
+        } else {
+            (*ds->free_proc)(ds->data);
+        }
+        ds->free_proc = NULL;
+    }
+}
+
+void dstr_reset(dstr_t ds) {
+    dstr_free(ds);
+    if ((ds->append_data != NULL) && (ds->append_data_size > 0)) {
+        xfree(ds->append_data);
+        ds->append_data = NULL;
+        ds->append_data_size = 0;
+    }
+
+    ds->data = ds->sbuf;
+    ds->sbuf[0] = 0;
+}
+

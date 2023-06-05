@@ -20,7 +20,7 @@
 #define CMD_TDNAME      "cmd_routine"
 #define CMD_MAX_ARGC    10
 #define CMD_SRV_PORT    3000
-#define CMD_BUFF_SIZE   4096
+#define CMD_DSTR_SIZE   4096
 
 struct cmd_manager{
     u8_t init;
@@ -31,8 +31,7 @@ struct cmd_manager{
     struct sockaddr_in caddr;
     socklen_t clen;
 
-    /* for reply message to PC host */
-    char buff[CMD_BUFF_SIZE];
+    arg_dstr_t ds;
 };
 
 static struct cmd_manager cm_obj;
@@ -47,7 +46,6 @@ void cmd_init(void)
 {
     struct cmd_manager *cm = &cm_obj;
     int ret;
-
 
     /* read port frome ini configure file */
     cm->sfd = cmd_srv_init((u16_t )atoi(cfg_read("cmd", "port", NULL)));
@@ -64,8 +62,16 @@ void cmd_init(void)
         goto err_pthread;
     }
 //    pthread_setname_np(cm->tid, CMD_TDNAME);
-    
+   
+    cm->ds = arg_dstr_create();
+    if(NULL == cm->ds)
+    {
+        log_red("ds new fail!\n");
+        goto err_ds;
+    }
     cm->init = 1;
+
+
     
     arg_set_module_name("cmd");
     arg_set_module_version(1, 0, 0, "argtable3");
@@ -77,7 +83,8 @@ void cmd_init(void)
     arg_cmd_register("cmd", cmd_arg_cmdfn, "information about all commands");
 
     return;
-
+err_ds:
+    pthread_cancel(cm->tid);
 err_pthread:
     close(cm->sfd);
 err_srv:
@@ -153,35 +160,6 @@ int cmd_dump(arg_dstr_t ds)
 }
 
 
-/****** static function list ******/
-static struct command **cmd_max_ppn_find(struct command **ppn)
-{
-    while(NULL != (*ppn)->r)
-        ppn = &((*ppn)->r);
-
-    return ppn;
-}
-
-struct command *cmd_new(char *name, char *spec, char *usage, command_cb_t func, void *user)
-{
-    struct command *c;
-
-    c = malloc(sizeof(struct command));
-    if(NULL != c)
-    {
-//        printf("add: name=%s, spec=%s, usage=%s, func=%p\r\n", name, spec, usage, func);
-        c->l = NULL;        /* must do */
-        c->r = NULL;
-        c->name = name;
-        c->spec = spec;
-        c->usage = usage;
-        c->func = func;
-        c->user = user;
-    }
-    
-    return c;
-}
-
 
 /****** static function list ******/
 static int cmd_srv_init(u16_t port)
@@ -217,15 +195,12 @@ err_socket:
 	return -1;
 }
 
-
-
 /* hand command from PC host */
 static int cmd_do_hand(char *buff, struct sockaddr_in *cip, socklen_t clen)
 {
     int argc = 0;
     char *argv[CMD_MAX_ARGC];
     struct cmd_manager *cm = &cm_obj;
-    arg_dstr_t ds = arg_dstr_create();
     char *msg;
 
     if(NULL==buff || NULL==cip || 0==clen)
@@ -240,23 +215,23 @@ static int cmd_do_hand(char *buff, struct sockaddr_in *cip, socklen_t clen)
         goto err_parse; 
     }
 
+    arg_dstr_reset(cm->ds);     /* must do */
+
     /****** for argtable ******/
     if(NULL == arg_cmd_info(argv[0]))
     { 
-        arg_dstr_catf(ds, "%s is not supported!\r\n", argv[0]);
+        arg_dstr_catf(cm->ds, "%s is not supported!\r\n", argv[0]);
         plog(CMD, "find command: is not supported!\r\n", argv[0]);
     }
     else
     {
-        arg_cmd_dispatch(argv[0], argc, argv, ds);
+        arg_cmd_dispatch(argv[0], argc, argv, cm->ds);
         plog(CMD, "find command: is supported!\r\n", argv[0]);
     }
 
-    msg = arg_dstr_cstr(ds);
+    msg = arg_dstr_cstr(cm->ds);
      
     sendto(cm->sfd, msg, strlen(msg), 0, (struct sockaddr *)cip, clen );
-
-    arg_dstr_destroy(ds);
 
     return 0;
 err_parse:

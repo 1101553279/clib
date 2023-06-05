@@ -7,7 +7,6 @@
 #include "blist.h"
 #include "log.h"
 #include "color.h"
-#include "util.h"
 
 #define GET_MAX(x, y)   (((x) > (y)) ? (x) : (y))
 #define GET_MIN(x, y)   (((x) < (y)) ? (x) : (y))

@@ -1,0 +1,29 @@
+#ifndef __DSTR_H__
+#define __DSTR_H__
+
+typedef void(dstr_freefn)(char* buf);
+
+#define DSTR_SIZE 200
+typedef struct _internal_dstr {
+    char* data;
+    dstr_freefn* free_proc;
+    char sbuf[DSTR_SIZE + 1];
+    char* append_data;
+    int append_data_size;
+    int append_used;
+} _internal_dstr_t;
+
+
+typedef struct _internal_dstr* dstr_t;
+
+dstr_t dstr_create(void);
+void dstr_destroy(dstr_t ds);
+void dstr_reset(dstr_t ds);
+void dstr_free(dstr_t ds);
+void dstr_set(dstr_t ds, char* str, dstr_freefn* free_proc);
+void dstr_cat(dstr_t ds, const char* str);
+void dstr_catc(dstr_t ds, char c);
+void dstr_catf(dstr_t ds, const char* fmt, ...);
+char* dstr_cstr(dstr_t ds);
+
+#endif

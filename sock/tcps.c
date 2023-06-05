@@ -178,12 +178,11 @@ static int tcps_arg_cmdfn(int argc, char* argv[], arg_dstr_t ds)
     int i = 0;
     void *argtable[] = 
     {
-        arg_d       = arg_lit0("d", "dump",                 "dump information about tcps module"),
-        arg_c       = arg_str0("c", "client", "[action]",  "what action you will do for client"),
-                      arg_rem(" action", "action list"),
-                      arg_rem("     list", "print client in list view"),
-                      arg_rem("     level", "print client in level view"),
-                      arg_rem("     uninit", "uninit all clients"),
+        arg_d       = arg_lit0("d", "dump",             "dump information about tcps module"),
+        arg_c       = arg_str0("c", "client", "[action]", "what action you will do for client"),
+                      arg_rem(NULL, "list    - print client in list view"),
+                      arg_rem(NULL, "level   - print client in level view"),
+                      arg_rem(NULL, "uninit  - uninit all clients"),
         end_arg     = arg_end(5),
     };
     int nerrors;
@@ -224,7 +223,7 @@ static int tcps_arg_cmdfn(int argc, char* argv[], arg_dstr_t ds)
     /* help usage for it's self */
     arg_dstr_catf(ds, "usage: %s", name);
     arg_print_syntaxv_ds(ds, argtable, "\r\n");
-    arg_print_glossary_ds(ds, argtable, "%-20s %s\r\n");
+    arg_print_glossary_ds(ds, argtable, "%-25s %s\r\n");
 
 to_c:
 to_d:

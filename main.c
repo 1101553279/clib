@@ -3,6 +3,7 @@
 #include "plog.h"
 #include "init/init.h"
 #include "cfg.h"
+#include "dstr.h"
 
 int main(int argc, char *argv[])
 {
