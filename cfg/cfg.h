@@ -1,9 +1,9 @@
 #ifndef __CFG_H__
 #define __CFG_H__
 
-#include "blist.h"
-#include "btype.h"
-#include "argtable3.h"
+#include "util/blist.h"
+#include "include/btype.h"
+#include "cmd/argtable3.h"
 
 struct cfg_proper{
     struct list_head node;

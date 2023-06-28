@@ -8,5 +8,5 @@ set(SOURCE_FILES command.c cbasic.c argtable3.c)
 add_library(cmd ${SOURCE_FILES})
 
 
-target_link_libraries(cmd pthread util plog)
+target_link_libraries(cmd pthread util log)
 

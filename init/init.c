@@ -1,10 +1,10 @@
 #include "init.h"
-#include "util.h"
-#include "cfg.h"
-#include "command.h"
-#include "log.h"
-#include "sock.h"
-#include "tick.h"
+#include "util/util.h"
+#include "cfg/cfg.h"
+#include "cmd/command.h"
+#include "log/log.h"
+#include "sock/sock.h"
+#include "tick/tick.h"
 
 typedef void (* init_t)(void *arg);
 
@@ -21,6 +21,7 @@ void init_first(void *arg)
 
     /* init plog module */
     plog_init();
+    log_init();
 
     /* init sock module */
     sock_init();
@@ -31,6 +32,7 @@ void init_first(void *arg)
 void init_last(void *arg)
 {
     plog_init_append();
+    log_init_append();
     cfg_init_append();
     tick_init_append();
     sock_init_append();

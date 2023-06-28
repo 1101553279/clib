@@ -1,7 +1,7 @@
 #ifndef __TCPS_H__
 #define __TCPS_H__
 #include "sclient.h"
-#include "btype.h"
+#include "include/btype.h"
 #include "sutil.h"
 #include <poll.h>
 

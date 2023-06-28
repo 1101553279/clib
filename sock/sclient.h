@@ -1,9 +1,9 @@
 #ifndef __SCLIENT_H__
 #define __SCLIENT_H__
 
-#include "btype.h"
+#include "include/btype.h"
 #include "sutil.h"
-#include "argtable3.h"
+#include "cmd/argtable3.h"
 
 /* client is managed by the AVL tree */
 struct sclient{

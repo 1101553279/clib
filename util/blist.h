@@ -1,6 +1,11 @@
 #ifndef LIST_H_INCLUDED
 #define LIST_H_INCLUDED
 
+#ifndef ARCH_HAS_PREFETCH
+#define ARCH_HAS_PREFETCH
+static inline void prefetch(const void *x) {;}
+#endif
+
 /* calculate the member offset in the structure type */
 #define type_of( type, member ) ( (size_t)(&((type *)0)->member) )
 
@@ -106,16 +111,6 @@ struct list_head {
 	for (pos = (head)->next, n = pos->next; pos != (head); \
 		pos = n, n = pos->next)
 
-/**
- * list_for_each_prev_safe - iterate over a list backwards safe against removal of list entry
- * @pos:	the &struct list_head to use as a loop cursor.
- * @n:		another &struct list_head to use as temporary storage
- * @head:	the head for your list.
- */
-#define list_for_each_prev_safe(pos, n, head) \
-	for (pos = (head)->prev, n = pos->prev; \
-	     pos != (head); \
-	     pos = n, n = pos->prev)
 #if 1
 #ifndef inline
 #define inline __inline               // add for compliling error
@@ -217,7 +212,50 @@ static inline int list_empty(const struct list_head *head)
     return head->next == head;
 }
 
+/**
+ * list_for_each_prev_safe - iterate over a list backwards safe against removal of list entry
+ * @pos:	the &struct list_head to use as a loop cursor.
+ * @n:		another &struct list_head to use as temporary storage
+ * @head:	the head for your list.
+ */
+#define list_for_each_prev_safe(pos, n, head) \
+	for (pos = (head)->prev, n = pos->prev; \
+	     prefetch(pos->prev), pos != (head); \
+	     pos = n, n = pos->prev)
 
+/**
+ * list_for_each_entry	-	iterate over list of given type
+ * @pos:	the type * to use as a loop cursor.
+ * @head:	the head for your list.
+ * @member:	the name of the list_struct within the struct.
+ */
+#define list_for_each_entry(pos, head, member)				\
+	for (pos = list_entry((head)->next, typeof(*pos), member);	\
+	     prefetch(pos->member.next), &pos->member != (head);	\
+	     pos = list_entry(pos->member.next, typeof(*pos), member))
 
+/**
+ * list_for_each_entry_reverse - iterate backwards over list of given type.
+ * @pos:	the type * to use as a loop cursor.
+ * @head:	the head for your list.
+ * @member:	the name of the list_struct within the struct.
+ */
+#define list_for_each_entry_reverse(pos, head, member)			\
+	for (pos = list_entry((head)->prev, typeof(*pos), member);	\
+	     prefetch(pos->member.prev), &pos->member != (head);	\
+	     pos = list_entry(pos->member.prev, typeof(*pos), member))
+
+ /**
+  * list_for_each_entry_safe - iterate over list of given type safe against removal of list entry
+  * @pos:    the type * to use as a loop cursor.
+  * @n:      another type * to use as temporary storage
+  * @head:   the head for your list.
+  * @member: the name of the list_struct within the struct.
+  */
+ #define list_for_each_entry_safe(pos, n, head, member)          \
+     for (pos = list_entry((head)->next, typeof(*pos), member),  \
+         n = list_entry(pos->member.next, typeof(*pos), member); \
+          &pos->member != (head);                    \
+          pos = n, n = list_entry(n->member.next, typeof(*n), member))
 
 #endif // LIST_H_INCLUDED

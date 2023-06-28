@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <unistd.h>
-#include "plog.h"
+#include "log/plog.h"
 #include "init/init.h"
-#include "cfg.h"
-#include "dstr.h"
+#include "cfg/cfg.h"
+#include "util/dstr.h"
 
 int main(int argc, char *argv[])
 {
@@ -15,17 +15,11 @@ int main(int argc, char *argv[])
 //    cfg_print();
     sec = cfg_section_find("cmd");
     cfg_section_print(sec);
-    sec = cfg_section_find("cmd2");
-    if(NULL == sec)
-        printf("section(cmd2) is not found!\r\n");
 
     pro = cfg_proper_find("cmd", "name");
     cfg_proper_print(pro);
     pro = cfg_proper_find("plog", "name");
     cfg_proper_print(pro);
-    pro = cfg_proper_find("plog2", "name");
-    if(NULL == sec)
-        printf("proper(%s:%s) is not found!\r\n", "plog2", "name");
 
 
     while(1)

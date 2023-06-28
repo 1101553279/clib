@@ -5,7 +5,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include "sutil.h"
-#include "argtable3.h"
+#include "cmd/argtable3.h"
 
 static void right_rotate(struct sclient *fn, struct sclient **root);
 static void left_right_rotate(struct sclient *fn, struct sclient **root);

@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include "command.h"
-#include "util.h"
+#include "cmd/command.h"
+#include "util/util.h"
 
 struct tcps_fds_cb_t
 {

@@ -2,13 +2,13 @@
 #include <stdio.h>
 #include <string.h>
 #include "command.h"
-#include "blist.h"
-#include "plog.h"
-#include "tick.h"
-#include "sock.h"
-#include "cfg.h"
-#include "argtable3.h"
-#include "util.h"
+#include "util/blist.h"
+#include "log/plog.h"
+#include "tick/tick.h"
+#include "sock/sock.h"
+#include "cfg/cfg.h"
+#include "cmd/argtable3.h"
+#include "util/util.h"
 
 
 static int help_arg_cmdfn(int argc, char* argv[], arg_dstr_t ds);

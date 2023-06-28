@@ -1,8 +1,8 @@
 #ifndef __TICK_H__
 #define __TICK_H__
 
-#include "btype.h"
-#include "argtable3.h"
+#include "include/btype.h"
+#include "cmd/argtable3.h"
 
 typedef void (*tknode_cb_t)(void *udata);
 

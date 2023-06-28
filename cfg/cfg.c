@@ -1,11 +1,11 @@
 #include "cfg.h"
-#include "command.h"
+#include "cmd/command.h"
 #include "inih/ini.h"
 #include <string.h>
 #include <stdlib.h>
-#include "plog.h"
-#include "log.h"
-#include "util.h"
+#include "log/plog.h"
+#include "log/log.h"
+#include "util/util.h"
 
 /*******************************************************************
 example: cfg.ini 
@@ -237,7 +237,7 @@ struct cfg_proper *cfg_proper_find_in_section(struct cfg_section *sec, const cha
     
     if(1 != c->init)
     {
-        log_red("cfg has not been inited - can't find\r\n");
+        log_red_print("cfg has not been inited - can't find\r\n");
         return NULL;
     }
 
@@ -270,7 +270,7 @@ void cfg_section_iterate(cfg_section_cb_t cb, void *user)
     
     if(1 != c->init)
     {
-        log_red("cfg has not been inited - can't iterate\r\n");
+        log_red_print("cfg has not been inited - can't iterate\r\n");
         return;
     }
 
@@ -305,7 +305,7 @@ void cfg_proper_iterate(cfg_proper_cb_t cb, void *user)
     
     if(1 != c->init)
     {
-        log_red("cfg has not been inited - can't iterate\r\n");
+        log_red_print("cfg has not been inited - can't iterate\r\n");
         return;
     }
 
@@ -391,7 +391,7 @@ const char *cfg_read(const char *section, const char *key, int *ok)
     
     if(1 != c->init)
     {
-        log_red("cfg has not been inited - can't read\r\n");
+        log_red_print("cfg has not been inited - can't read\r\n");
         return NULL;
     }
 

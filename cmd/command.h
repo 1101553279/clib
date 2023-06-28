@@ -4,9 +4,9 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
-#include "btype.h"
-#include "blist.h"
-#include "plog.h"
+#include "include/btype.h"
+#include "util/blist.h"
+#include "log/plog.h"
 
 
 

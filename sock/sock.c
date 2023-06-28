@@ -5,10 +5,10 @@
 #include "sclient.h"
 #include "tcps.h"
 #include "udps.h"
-#include "btype.h"
+#include "include/btype.h"
 #include <pthread.h>
-#include "command.h"
-#include "cfg.h"
+#include "cmd/command.h"
+#include "cfg/cfg.h"
 
 struct sock{
     pthread_t tid;          /* pthread id */

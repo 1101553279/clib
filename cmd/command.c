@@ -2,11 +2,11 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
-#include "util.h"
-#include "blist.h"
-#include "log.h"
+#include "util/util.h"
+#include "util/blist.h"
+#include "log/log.h"
 #include <unistd.h>
-#include "cfg.h"
+#include "cfg/cfg.h"
 #define _GNU_SOURCE
 #include <pthread.h>
 #include <string.h>
@@ -51,14 +51,14 @@ void cmd_init(void)
     cm->sfd = cmd_srv_init((u16_t )atoi(cfg_read("cmd", "port", NULL)));
     if(cm->sfd < 0)
     {
-        log_red("srv init fail!\n");
+        log_red_print("srv init fail!\n");
         goto err_srv;
     }
     /* this task is for recviving command from PC host */
     ret = pthread_create(&cm->tid, NULL, cmd_routine, NULL);
     if(ret < 0)
     {
-        log_red("thread new fail!\n");
+        log_red_print("thread new fail!\n");
         goto err_pthread;
     }
 //    pthread_setname_np(cm->tid, CMD_TDNAME);
@@ -66,7 +66,7 @@ void cmd_init(void)
     cm->ds = arg_dstr_create();
     if(NULL == cm->ds)
     {
-        log_red("ds new fail!\n");
+        log_red_print("ds new fail!\n");
         goto err_ds;
     }
     cm->init = 1;
@@ -170,7 +170,7 @@ static int cmd_srv_init(u16_t port)
 	sfd = socket(AF_INET, SOCK_DGRAM, 0);
 	if(sfd < 0)
 	{
-		log_red("socket new failed\r\n");
+		log_red_print("socket new failed\r\n");
 		goto err_socket;
 	}
 	
@@ -184,7 +184,7 @@ static int cmd_srv_init(u16_t port)
 	if ( bind(sfd, (struct sockaddr *)&servaddr, 
 			sizeof(servaddr)) < 0 ) 
 	{ 
-		log_red("socket bind fail!\r\n");
+		log_red_print("socket bind fail!\r\n");
 		goto err_bind;
 	} 
     return sfd;

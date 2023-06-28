@@ -1,14 +1,14 @@
 #include "tick.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include "blist.h"
-#include "log.h"
-#include "plog.h"
+#include "util/blist.h"
+#include "log/log.h"
+#include "log/plog.h"
 #include <string.h>
 #include <pthread.h>
 #include <unistd.h>
-#include "command.h"
-#include "util.h"
+#include "cmd/command.h"
+#include "util/util.h"
 
 #define TICK_NAME       "ticktask"
 #define USEC_PER_SEC    1000000
@@ -102,11 +102,11 @@ void tick_init(void)
     ret = pthread_create(&tk->tid, NULL, task_cb, NULL);
     if(ret < 0)
     {
-        log_red("new task fail!\r\n"); 
+        log_red_print("new task fail!\r\n"); 
         return;
     }
     
-    log_grn("tick init success!\r\n");
+    log_grn_print("tick init success!\r\n");
     tk->init = 1;
 
     return;
@@ -137,13 +137,13 @@ int tick_add(char *name, tknode_cb_t cb, void *udata, u16_t div)
 
     if(1 != tk->init)
     {
-        log_red("tick has not been inited - name(%s) can't not add\r\n", name);
+        log_red_print("tick has not been inited - name(%s) can't not add\r\n", name);
         return -1;
     }
 
     if(NULL == cb)
     {
-        log_red("tick add fail: 0==cb\r\n");
+        log_red_print("tick add fail: 0==cb\r\n");
         return -1;
     }
     /* check repeated tick node add */
@@ -152,7 +152,7 @@ int tick_add(char *name, tknode_cb_t cb, void *udata, u16_t div)
         node = list_entry(pos, struct tknode, node);
         if(NULL!=name && 0==strcmp(name, node->name))
         {
-            log_red("repeated add: tick has been added!\r\n");
+            log_red_print("repeated add: tick has been added!\r\n");
             return -1;
         }
     }
@@ -161,7 +161,7 @@ int tick_add(char *name, tknode_cb_t cb, void *udata, u16_t div)
     node = malloc(sizeof(struct tknode));
     if(NULL == node)
     {
-        log_red("memory malloc fail!\r\n");
+        log_red_print("memory malloc fail!\r\n");
         return -1;
     }
     node->ptimes = tk->ctimes;
@@ -191,7 +191,7 @@ int tick_rmv(char *name)
     
     if(1 != tk->init)
     {
-        log_red("tick has not been inited - name(%s) can't not rmv\r\n", name);
+        log_red_print("tick has not been inited - name(%s) can't not rmv\r\n", name);
         return -1;
     }
 

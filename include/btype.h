@@ -8,6 +8,9 @@ typedef unsigned   short   u16_t;
 typedef signed     short   s16_t;
 typedef unsigned   int    u32_t;
 typedef signed     int    s32_t;
+typedef unsigned long   ulong;
+typedef unsigned int uint;
+typedef unsigned long long u64_t;
 
 #ifndef __cplusplus
 typedef enum {FALSE = 0, TRUE = !FALSE} bool;
