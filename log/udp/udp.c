@@ -52,8 +52,8 @@ static int logudp_arg_cmdfn(int argc, char *argv[], arg_dstr_t ds)
         argudp_arg_dev         = arg_lit0(NULL, "dev",     "manage log udp device part"),
         argudp_arg_srv         = arg_str0(NULL, "srv",     "ip", "server ip"),
         argudp_arg_port        = arg_int0(NULL, "port",    "port", "server port"),
-        argudp_arg_i           = arg_int0("i", NULL,       "id", "device id"),
-        argudp_end_arg         = arg_end(5),
+        argudp_arg_i           = arg_intn("i", NULL,       "id", 0, 5, "device id"),
+        argudp_end_arg         = arg_end(10),
     };
 
     ret = argtable_parse(argc, argv, argtable, argudp_end_arg, ds, argv[0]);

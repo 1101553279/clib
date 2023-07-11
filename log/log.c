@@ -16,28 +16,15 @@
 #include <pthread.h>
 #include "udp/udp.h"
 #include "cmd/argtable3.h"
+#include "util/util.h"
 
 static const char *const log_cat_name[] = {
 	"none",
-	"arch",
-	"board",
-	"core",
-	"driver-model",
-	"device-tree",
-	"efi",
-	"alloc",
-	"sandbox",
-	"bloblist",
-	"devres",
-	"acpi",
-	"boot",
-	"event",
-	"fs",
+	"run",
+	"cmd",
+	"tick",
+	"cfg",
 };
-#if 0
-_Static_assert(ARRAY_SIZE(log_cat_name) == LOGC_COUNT - LOGC_NONE,
-	       "log_cat_name size");
-#endif
 
 static const char *const log_level_name[] = {
 	"EMERG",
@@ -86,33 +73,9 @@ const char *log_get_cat_name(enum log_category_t cat)
 	if (cat >= LOGC_NONE)
 		return log_cat_name[cat - LOGC_NONE];
 
-#if 0
-#if CONFIG_IS_ENABLED(DM)
-	name = uclass_get_name((enum uclass_id)cat);
-#else
-	name = NULL;
-#endif
-#endif
-
 	return name ? name : "<missing>";
 }
 
-#if 0
-enum log_category_t log_get_cat_by_name(const char *name)
-{
-	enum uclass_id id;
-	int i;
-
-	for (i = LOGC_NONE; i < LOGC_COUNT; i++)
-		if (!strcmp(name, log_cat_name[i - LOGC_NONE]))
-			return i;
-	id = uclass_get_by_name(name);
-	if (id != UCLASS_INVALID)
-		return (enum log_category_t)id;
-
-	return LOGC_NONE;
-}
-#endif
 
 const char *log_get_level_name(enum log_level_t level)
 {
@@ -247,6 +210,7 @@ static int log_dispatch(struct log_rec *rec, const char *fmt, va_list args)
 
 	/* Emit message */
 	processing_msg = 1;
+    LOCK_ENTER(&log_device_lock);
 	list_for_each_entry(ldev, &log_device_head, sibling_node) {
 		if ((ldev->flags & LOGDF_ENABLE) &&
 		    log_passes_filters(ldev, rec)) {
@@ -260,6 +224,7 @@ static int log_dispatch(struct log_rec *rec, const char *fmt, va_list args)
 			ldev->drv->emit(ldev, rec);
 		}
 	}
+    LOCK_EXIT(&log_device_lock);
 	processing_msg = 0;
 	return 0;
 }
@@ -293,6 +258,7 @@ int _log(enum log_category_t cat, enum log_level_t level, const char *file,
 	rec.line = line;
 	rec.func = func;
 	rec.msg = NULL;
+
 
 #if 0
 	if (!(gd->flags & GD_FLG_LOG_READY)) {
@@ -487,16 +453,17 @@ int log_driver_bind_device(struct log_driver *drv, struct log_device *dev)
     return 0;
 }
 
-void log_driver_init(struct log_driver *drv)
+int log_driver_init(struct log_driver *drv)
 {
     if(drv)
     {
     	INIT_LIST_HEAD(&drv->device_head);
 		LOCK_INIT(&drv->device_lock);
     	INIT_LIST_HEAD(&drv->sibling_node);
+        return 0;
     }
 
-    return;
+    return -1;
 }
 
 int log_driver_register(struct log_driver *drv)
@@ -506,8 +473,6 @@ int log_driver_register(struct log_driver *drv)
 
     if(NULL==drv || NULL==drv->name)
         return -ENOENT;
-    
-    log_driver_init(drv);
 
     LOCK_ENTER(&log_driver_lock);
     list_for_each_entry(drv_node, &log_driver_head, sibling_node)
@@ -539,6 +504,7 @@ int log_driver_register(struct log_driver *drv)
 
     return 0;
 }
+
 struct log_driver *log_driver_find_by_name(const char *name)
 {
     struct log_driver *drv_node;
@@ -581,6 +547,7 @@ void log_device_init(struct log_device *dev)
         INIT_LIST_HEAD(&dev->driver_node);
         INIT_LIST_HEAD(&dev->filter_head);
         INIT_LIST_HEAD(&dev->sibling_node);
+        dev->flags = LOG_DEVICE_DEFAULT_FLAGS;
     }
 
     return;
@@ -670,7 +637,7 @@ int log_device_unregister(struct log_device *dev)
     return 0;
 }
 
-int log_device_freeall_by_name(const char *name, int(*free_cb)(struct log_device *dev, arg_dstr_t ds), arg_dstr_t ds)
+int log_device_handle_by_name(const char *name, int(*handle_cb)(struct log_device *dev, void *data), void *data)
 {
     struct log_device *dpos;
     struct log_device *dn;
@@ -681,15 +648,37 @@ int log_device_freeall_by_name(const char *name, int(*free_cb)(struct log_device
         if(0 == strcmp(name, dpos->name))
         {
             LOCK_EXIT(&log_device_lock);
-            log_device_unregister(dpos);
-            if(free_cb)
-                free_cb(dpos, ds);
+            if(handle_cb)
+                handle_cb(dpos, data);
             LOCK_ENTER(&log_device_lock);
         }
 	}
     LOCK_EXIT(&log_device_lock);
 
     return 0;
+}
+
+int log_device_dstr_handle_by_name(const char *name, int(*handle_cb)(struct log_device *dev, arg_dstr_t ds), arg_dstr_t ds)
+{
+    return log_device_handle_by_name(name, (int (*)(struct log_device *, void *))handle_cb, ds);
+}
+
+struct log_device *log_device_find_by_nameid(const char *name, int id)
+{
+    struct log_device *dev_node = NULL;
+
+    LOCK_ENTER(&log_device_lock);
+    list_for_each_entry(dev_node, &log_device_head, sibling_node)
+    {
+        if(0==strcmp(dev_node->name, name) && id==dev_node->id)
+        {
+            LOCK_EXIT(&log_device_lock);
+            return dev_node;
+        }
+    }
+    LOCK_EXIT(&log_device_lock);
+
+    return NULL;
 }
 
 static int log_arg_cmdfn(int argc, char *argv[], arg_dstr_t ds);
@@ -706,15 +695,14 @@ int log_init(void)
 	gd_logc_prev = LOGC_NONE;
 	gd_logl_prev = LOGL_INFO;
 
-
-    log_udp_init();
-
 	return 0;
 }
 
 void log_init_append(void)
 {
     arg_cmd_register("log", log_arg_cmdfn, "manage log module");
+
+    log_udp_init();
 }
 
 /* dump log module information to buffer */

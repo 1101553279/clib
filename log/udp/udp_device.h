@@ -18,7 +18,6 @@ void log_udp_device_init(struct log_udp_device *dev);
 
 struct log_udp_device *log_udp_device_new(void);
 
-
 void log_udp_device_del(struct log_udp_device *dev);
 
 arg_dstr_t logudp_cmd_dev(arg_dstr_t ds);

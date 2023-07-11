@@ -74,40 +74,13 @@ enum log_category_t {
 	LOGC_FIRST = 0,	/* First part mirrors UCLASS_... */
 
 	/** @LOGC_NONE: Default log category */
-//	LOGC_NONE = UCLASS_COUNT,	/* First number is after all uclasses */
 	LOGC_NONE = 1,	/* First number is after all uclasses */
-	/** @LOGC_ARCH: Related to arch-specific code */
-	LOGC_ARCH,
-	/** @LOGC_BOARD: Related to board-specific code */
-	LOGC_BOARD,
-	/** @LOGC_CORE: Related to core features (non-driver-model) */
-	LOGC_CORE,
-	/** @LOGC_DM: Core driver-model */
-	LOGC_DM,
-	/** @LOGC_DT: Device-tree */
-	LOGC_DT,
-	/** @LOGC_EFI: EFI implementation */
-	LOGC_EFI,
-	/** @LOGC_ALLOC: Memory allocation */
-	LOGC_ALLOC,
-	/** @LOGC_SANDBOX: Related to the sandbox board */
-	LOGC_SANDBOX,
-	/** @LOGC_BLOBLIST: Bloblist */
-	LOGC_BLOBLIST,
-	/** @LOGC_DEVRES: Device resources (``devres_...`` functions) */
-	LOGC_DEVRES,
-	/** @LOGC_ACPI: Advanced Configuration and Power Interface (ACPI) */
-	LOGC_ACPI,
-	/** @LOGC_BOOT: Related to boot process / boot image processing */
-	LOGC_BOOT,
-	/** @LOGC_EVENT: Related to event and event handling */
-	LOGC_EVENT,
-	/** @LOGC_FS: Related to filesystems */
-	LOGC_FS,
-	/** @LOGC_COUNT: Number of log categories */
-	LOGC_COUNT,
-	/** @LOGC_END: Sentinel value for lists of log categories */
-	LOGC_END,
+	LOGC_RUN,
+	LOGC_CMD,
+	LOGC_TICK,
+	LOGC_CFG,
+    LOGC_COUNT,
+    LOGC_END,
 	/** @LOGC_CONT: Use same category as in previous call */
 	LOGC_CONT = -1,
 };
@@ -175,7 +148,7 @@ int _log_buffer(enum log_category_t cat, enum log_level_t level,
 #define _LOG_MAX_LEVEL LOGL_INFO
 #endif
 #endif
-#define _LOG_MAX_LEVEL LOGL_INFO
+#define _LOG_MAX_LEVEL LOGL_DEBUG
 
 #define log_emer(_fmt...)	log(LOG_CATEGORY, LOGL_EMERG, ##_fmt)
 #define log_alert(_fmt...)	log(LOG_CATEGORY, LOGL_ALERT, ##_fmt)
@@ -433,9 +406,6 @@ struct log_rec {
 
 struct log_device;
 
-enum log_device_flags {
-	LOGDF_ENABLE		= 0x1<<0,	/* Device is enabled */
-};
 
 /**
  * struct log_driver - a driver which accepts and processes log records
@@ -463,6 +433,21 @@ struct log_driver {
 	LOCK_DECLARE(device_lock);	
 };
 
+enum log_device_flags {
+	LOGDF_ENABLE		= 0x1<<0,	/* Device is enabled */
+    LOGDF_DEVID         = 0x1<<1,
+    LOGDF_CAT           = 0x1<<2,
+    LOGDF_LEVEL         = 0x1<<3,
+    LOGDF_FILE          = 0x1<<4,
+    LOGDF_LINE          = 0x1<<5,
+    LOGDF_FUNC          = 0x1<<6,
+    LOGDF_ALL           = 0xffff,
+};
+
+#define LOG_DEVICE_DEFAULT_FLAGS        (LOGDF_ENABLE|LOGDF_DEVID|LOGDF_CAT|LOGDF_FUNC|LOGDF_LINE)
+#define LOG_DEVICE_FLAGS_SET(dev, f)    ((dev)->flags |= (f))
+#define LOG_DEVICE_FLAGS_CLR(dev, f)    ((dev)->flags &= ~(f))
+
 /**
  * struct log_device - an instance of a log driver
  *
@@ -489,6 +474,9 @@ struct log_device {
 	struct list_head filter_head;
 	struct list_head sibling_node;
 };
+#define LOG_DEVICE_FLAGS(dev, f)    ((dev)->flags&(f))
+#define LOG_DEVICE_NAME(dev)    ((dev)->name)
+#define LOG_DEVICE_ID(dev)      ((dev)->id)
 
 static inline void log_device_set_drvdata(struct log_device *dev, void *data)
 {
@@ -542,13 +530,6 @@ struct log_filter {
 	const char *file_list;
 	struct list_head sibling_node;
 };
-
-#define LOG_DRIVER(_name) \
-	ll_entry_declare(struct log_driver, _name, log_driver)
-
-/* Get a pointer to a given driver */
-#define LOG_GET_DRIVER(__name)						\
-	ll_entry_get(struct log_driver, __name, log_driver)
 
 /**
  * log_get_cat_name() - Get the name of a category
@@ -701,6 +682,8 @@ int log_remove_filter(const char *drv_name, int filter_num);
 int log_device_set_enable(struct log_driver *drv, bool enable);
 
 
+int log_driver_init(struct log_driver *drv);
+
 int log_driver_register(struct log_driver *drv);
 
 struct log_driver *log_driver_find_by_name(const char *name);
@@ -709,7 +692,9 @@ int log_driver_dev_iterate(struct log_driver *drv, int (*iterate_cb)(struct log_
 
 int log_device_register(struct log_device *dev);
 int log_device_unregister(struct log_device *dev);
-int log_device_freeall_by_name(const char *name, int(*free_cb)(struct log_device *dev, arg_dstr_t ds), arg_dstr_t ds);
+int log_device_handle_by_name(const char *name, int(*handle_cb)(struct log_device *dev, void *data), void *data);
+int log_device_dstr_handle_by_name(const char *name, int(*handle_cb)(struct log_device *dev, arg_dstr_t ds), arg_dstr_t ds);
+struct log_device *log_device_find_by_nameid(const char *name, int id);
 
 /**
  * log_init() - Set up the log system ready for use
